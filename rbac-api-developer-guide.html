@@ -1,0 +1,1072 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>haus-rbac-api — Developer Guide &amp; Knowledge Base</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,300..900,0..100,0..1;1,9..144,300..900,0..100,0..1&family=Source+Serif+4:ital,opsz,wght@0,8..60,300..700;1,8..60,300..700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+:root{
+  --paper: #f7f4ec; --paper-2: #efeadc; --paper-3: #e6dfca;
+  --ink: #1a1612; --ink-soft: #3d3830; --ink-faint: #7a7468;
+  --rule: #c4bba5; --rule-soft: #ddd5bc;
+  --oxblood: #9d2818; --oxblood-deep: #6e1a0e;
+  --teal: #2a6066; --teal-deep: #163c41;
+  --ochre: #b08020; --moss: #5e6f3a;
+  --code-bg: #1a1d22; --code-ink: #e8e3d4;
+  --maxw: 1020px;
+}
+*{ box-sizing: border-box; }
+html{ scroll-behavior: smooth; }
+body{
+  margin: 0; background: var(--paper); color: var(--ink);
+  font-family: 'Source Serif 4', Georgia, 'Times New Roman', serif;
+  font-variation-settings: "opsz" 16;
+  font-size: 17px; line-height: 1.62;
+  -webkit-font-smoothing: antialiased;
+}
+body::before{
+  content: ""; position: fixed; inset: 0;
+  background-image: radial-gradient(rgba(80,55,20,0.03) 1px, transparent 1px);
+  background-size: 4px 4px; pointer-events: none; z-index: 1;
+  mix-blend-mode: multiply;
+}
+header, main, footer{ position: relative; z-index: 2; }
+header{
+  max-width: var(--maxw); margin: 0 auto;
+  padding: 80px 32px 56px;
+  border-bottom: 4px solid var(--ink); position: relative;
+}
+header::after{
+  content: ""; display: block; position: absolute;
+  bottom: -10px; left: 32px; right: 32px; height: 1px; background: var(--ink);
+}
+.kicker{
+  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 11px; letter-spacing: .28em; text-transform: uppercase;
+  color: var(--oxblood); margin-bottom: 32px;
+  display: flex; align-items: center; gap: 16px;
+}
+.kicker::before{ content: "\2B25"; color: var(--ochre); }
+.kicker::after{
+  content: ""; flex: 1; height: 2px;
+  background: linear-gradient(to right, var(--rule) 0%, var(--rule) 30%, transparent 100%);
+}
+h1{
+  font-family: 'Fraunces', Georgia, serif;
+  font-variation-settings: "opsz" 144, "SOFT" 100, "WONK" 1;
+  font-weight: 500; font-size: clamp(44px, 8vw, 88px);
+  line-height: 0.94; letter-spacing: -0.025em;
+  margin: 0 0 24px; color: var(--ink);
+}
+h1 .ital{ font-style: italic; font-weight: 400; color: var(--oxblood); }
+.deck{
+  font-family: 'Source Serif 4', Georgia, serif;
+  font-variation-settings: "opsz" 32;
+  font-size: 21px; font-style: italic; color: var(--ink-soft);
+  max-width: 760px; line-height: 1.45; margin-top: 20px;
+}
+.meta-row{
+  margin-top: 36px; display: flex; gap: 32px; flex-wrap: wrap;
+  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 11.5px; color: var(--ink-faint); letter-spacing: .04em;
+}
+.meta-row .m b{ color: var(--ink); font-weight: 600; }
+.toc{
+  margin-top: 48px; border: 2px solid var(--ink); background: var(--paper-2);
+  padding: 26px 30px; position: relative;
+}
+.toc::before{
+  content: "Index"; position: absolute; top: -12px; left: 24px;
+  background: var(--paper); padding: 0 10px;
+  font-family: 'Fraunces', Georgia, serif; font-style: italic;
+  font-size: 16px; color: var(--ink);
+}
+.toc-grid{ display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px 36px; }
+@media (max-width: 760px){ .toc-grid{ grid-template-columns: 1fr; } }
+.toc-grid a{
+  color: var(--ink-soft); text-decoration: none;
+  font-size: 14.5px; padding: 5px 0; display: flex; gap: 14px;
+  border-bottom: 1px solid transparent; transition: all .15s;
+  font-family: 'Source Serif 4', Georgia, serif;
+}
+.toc-grid a:hover{ color: var(--oxblood); border-color: var(--rule); }
+.toc-grid a .n{
+  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 11px; color: var(--oxblood); min-width: 30px; font-weight: 600;
+}
+main{ max-width: var(--maxw); margin: 0 auto; padding: 48px 32px 80px; }
+.part{
+  margin-top: 90px; padding-top: 48px;
+  border-top: 4px solid var(--ink); position: relative;
+}
+.part::after{
+  content: ""; position: absolute; top: 8px; left: 0; right: 0;
+  height: 1px; background: var(--ink);
+}
+.part:first-child{ margin-top: 32px; border-top: none; padding-top: 0; }
+.part:first-child::after{ display: none; }
+.part-label{
+  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 11px; letter-spacing: .28em; color: var(--oxblood);
+  text-transform: uppercase; margin-bottom: 12px; font-weight: 600;
+}
+.part-title{
+  font-family: 'Fraunces', Georgia, serif;
+  font-variation-settings: "opsz" 96;
+  font-weight: 500; font-size: 48px; line-height: 1.0;
+  letter-spacing: -0.015em; margin: 0 0 14px; color: var(--ink);
+}
+.part-title .ital{ font-style: italic; color: var(--oxblood); font-weight: 400; }
+.part-intro{
+  color: var(--ink-soft); font-size: 18px; max-width: 720px;
+  margin-bottom: 36px; font-style: italic;
+  font-family: 'Source Serif 4', Georgia, serif;
+  font-variation-settings: "opsz" 24; line-height: 1.55;
+}
+section.chapter{ margin-top: 48px; }
+h2{
+  font-family: 'Fraunces', Georgia, serif;
+  font-variation-settings: "opsz" 48;
+  font-weight: 500; font-size: 30px; line-height: 1.18;
+  letter-spacing: -0.01em; margin: 0 0 14px; color: var(--ink);
+  display: flex; align-items: baseline; gap: 18px;
+}
+h2 .ch-num{
+  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 12px; color: var(--oxblood); letter-spacing: .15em;
+  font-weight: 600; flex-shrink: 0;
+}
+h3{
+  font-family: 'Fraunces', Georgia, serif;
+  font-variation-settings: "opsz" 32;
+  font-weight: 600; font-size: 20px; margin: 28px 0 10px;
+  color: var(--ink); letter-spacing: -0.005em;
+}
+h4{
+  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 11px; letter-spacing: .2em; text-transform: uppercase;
+  color: var(--teal); margin: 22px 0 8px; font-weight: 600;
+}
+p{ margin: 12px 0; }
+p code, li code, td code{
+  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: .82em; background: var(--paper-3); color: var(--oxblood-deep);
+  padding: 1px 6px; border-radius: 2px;
+}
+ul, ol{ padding-left: 1.4em; }
+li{ margin: 6px 0; }
+ul.tight li{ margin: 3px 0; }
+ul.dash{ list-style: none; padding-left: 0; }
+ul.dash li{ position: relative; padding-left: 26px; }
+ul.dash li::before{
+  content: "\2014"; position: absolute; left: 0;
+  color: var(--oxblood); font-weight: 600;
+}
+pre{
+  background: var(--code-bg); border: 1px solid #2a2e35;
+  padding: 16px 20px; overflow-x: auto;
+  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 12.5px; line-height: 1.6;
+  color: var(--code-ink); margin: 18px 0;
+  position: relative; border-radius: 2px;
+}
+pre .com{ color: #7e8a78; font-style: italic; }
+pre .kw{  color: #d9b88a; }
+pre .ty{  color: #88c5b4; }
+pre .str{ color: #e09678; }
+pre .num{ color: #c8a4d8; }
+pre .fn{  color: #84b5d4; }
+pre .pp{  color: #d8b070; }
+pre::before{
+  content: attr(data-lang); position: absolute; top: 6px; right: 12px;
+  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 9.5px; letter-spacing: .18em;
+  color: #5a6258; text-transform: uppercase;
+}
+.code-caption{
+  font-family: 'Source Serif 4', Georgia, serif; font-style: italic;
+  font-size: 14.5px; color: var(--ink-faint);
+  margin: -10px 0 18px; padding-left: 6px;
+}
+.callout{
+  margin: 22px 0; padding: 16px 22px;
+  border-left: 4px solid var(--teal); background: var(--paper-2);
+  font-size: 15.5px; line-height: 1.6;
+}
+.callout.warn{ border-color: var(--ochre); }
+.callout.danger{ border-color: var(--oxblood); }
+.callout.tip{ border-color: var(--moss); }
+.callout h5{
+  margin: 0 0 6px;
+  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 10.5px; letter-spacing: .22em; text-transform: uppercase;
+  color: var(--teal); font-weight: 700;
+}
+.callout.warn h5{ color: var(--ochre); }
+.callout.danger h5{ color: var(--oxblood); }
+.callout.tip h5{ color: var(--moss); }
+.callout p:first-child{ margin-top: 0; }
+.callout p:last-child{ margin-bottom: 0; }
+.callout pre{ margin: 8px 0 4px; }
+.tbl{ width: 100%; border-collapse: collapse; margin: 18px 0; font-size: 14px; }
+.tbl th, .tbl td{
+  text-align: left; padding: 10px 14px; vertical-align: top;
+  border-bottom: 1px solid var(--rule);
+}
+.tbl th{
+  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 10.5px; letter-spacing: .16em; text-transform: uppercase;
+  color: var(--oxblood); font-weight: 700;
+  border-bottom: 2px solid var(--oxblood);
+}
+.tbl th.r{ text-align: right; }
+.tbl tr:hover td{ background: var(--paper-2); }
+.tbl td:first-child{
+  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 12px; color: var(--ink); font-weight: 600; width: 22%;
+}
+.tbl td.r{ text-align: right; font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace; font-size: 12.5px; color: var(--ink-soft); }
+.tbl td.wide:first-child{ width: auto; }
+.tbl td.norm:first-child{ font-family: 'Source Serif 4', Georgia, serif; font-size: 14px; font-weight: 400; width: auto; }
+.win{ color: var(--moss); font-weight: 700; }
+.lose{ color: var(--oxblood); font-weight: 700; }
+.twocol{ display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin: 22px 0; }
+@media (max-width: 760px){ .twocol{ grid-template-columns: 1fr; } }
+.twocol .col{ background: var(--paper-2); border: 1px solid var(--rule); padding: 18px 20px; }
+.twocol .col h5{
+  margin: 0 0 10px;
+  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 11px; letter-spacing: .18em; text-transform: uppercase;
+  color: var(--teal); font-weight: 700;
+}
+.twocol .col.bad h5{ color: var(--oxblood); }
+.twocol .col.good h5{ color: var(--moss); }
+.twocol .col p{ margin: 8px 0; font-size: 14.5px; }
+.diagram{
+  background: var(--paper-2); border: 1px solid var(--rule);
+  padding: 22px 24px; margin: 22px 0;
+  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 12px; line-height: 1.55; color: var(--ink-soft);
+  white-space: pre; overflow-x: auto;
+}
+.pull{
+  font-family: 'Fraunces', Georgia, serif;
+  font-variation-settings: "opsz" 72;
+  font-style: italic; font-weight: 400;
+  font-size: 26px; line-height: 1.32;
+  color: var(--oxblood); margin: 36px 0;
+  padding: 0 0 0 32px; border-left: 3px solid var(--oxblood);
+}
+.idea{
+  margin: 24px 0; border: 2px solid var(--ink);
+  background: var(--paper); padding: 20px 24px; position: relative;
+}
+.idea::before{
+  content: "Key idea"; position: absolute; top: -10px; left: 20px;
+  background: var(--paper); padding: 0 10px;
+  font-family: 'Fraunces', Georgia, serif; font-style: italic;
+  font-size: 14px; color: var(--ink);
+}
+.idea p{ margin: 6px 0; font-size: 15.5px; }
+.idea p:first-child{ margin-top: 6px; }
+.idea p:last-child{ margin-bottom: 0; }
+.rule-sep{ height: 1px; background: var(--rule); margin: 56px 0; position: relative; }
+.rule-sep::after{
+  content: "\00A7"; position: absolute;
+  top: 50%; left: 50%; transform: translate(-50%, -50%);
+  background: var(--paper); color: var(--oxblood);
+  padding: 0 18px;
+  font-family: 'Fraunces', Georgia, serif; font-style: italic; font-size: 18px;
+}
+footer{
+  max-width: var(--maxw); margin: 0 auto; padding: 56px 32px 80px;
+  border-top: 4px solid var(--ink); color: var(--ink-soft);
+  font-size: 14.5px; position: relative;
+}
+footer::after{
+  content: ""; position: absolute; top: 8px; left: 32px; right: 32px;
+  height: 1px; background: var(--ink);
+}
+footer h4{
+  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 11px; letter-spacing: .22em;
+  color: var(--oxblood); margin: 0 0 14px; font-weight: 700;
+}
+footer .resources{ columns: 2; column-gap: 36px; }
+@media (max-width: 680px){ footer .resources{ columns: 1; } }
+footer ul{ list-style: none; padding: 0; margin: 0; }
+footer li{ padding: 5px 0; font-size: 14px; break-inside: avoid; }
+footer li code{ color: var(--oxblood); background: transparent; padding: 0; font-weight: 600; }
+</style>
+</head>
+
+<body>
+<!-- ============================================================ HEADER -->
+<header>
+  <div class="kicker">Haus &middot; Platform &middot; Authorization &middot; service walkthrough &amp; knowledge base</div>
+  <h1><span class="ital">haus-rbac-api</span><br>the authority on "can&nbsp;X do&nbsp;Y?"</h1>
+  <p class="deck">
+    A complete tour of the central authorization service: how the repo is laid out,
+    how the web / worker / scheduler pods fit together over a MySQL + PostgreSQL split,
+    how to get it running locally, and the load-bearing concepts &mdash; the
+    <em>audience&ndash;scope invariant</em>, the public <code>/permissions/check</code> hot path,
+    and the security model &mdash; that you cannot safely change code without understanding.
+  </p>
+  <div class="meta-row">
+    <span class="m"><b>Repo</b> haus-rbac-api</span>
+    <span class="m"><b>Stack</b> Python 3.13 &middot; FastAPI &middot; Peewee</span>
+    <span class="m"><b>Audience</b> new engineers ramping up</span>
+    <span class="m"><b>Date</b> 2026-05-29</span>
+  </div>
+  <div class="toc">
+    <div class="toc-grid">
+      <a href="#c00"><span class="n">&sect;00</span><span>What this service is &amp; why it exists</span></a>
+      <a href="#c01"><span class="n">&sect;01</span><span>The domain vocabulary you must know</span></a>
+      <a href="#c02"><span class="n">&sect;02</span><span>Repo structure &amp; layered architecture</span></a>
+      <a href="#c03"><span class="n">&sect;03</span><span>The three runtime components</span></a>
+      <a href="#c04"><span class="n">&sect;04</span><span>The two-database split</span></a>
+      <a href="#c05"><span class="n">&sect;05</span><span>Services &amp; how they interconnect</span></a>
+      <a href="#c06"><span class="n">&sect;06</span><span>First-time setup, step by step</span></a>
+      <a href="#c07"><span class="n">&sect;07</span><span>Daily dev loop: run, migrate, test, PR</span></a>
+      <a href="#c08"><span class="n">&sect;08</span><span>Deep dive: the permission-check hot path</span></a>
+      <a href="#c09"><span class="n">&sect;09</span><span>Deep dive: identity &amp; the two Firebases</span></a>
+      <a href="#c10"><span class="n">&sect;10</span><span>Deep dive: the audience&ndash;scope invariant</span></a>
+      <a href="#c11"><span class="n">&sect;11</span><span>Designing permissions &amp; roles</span></a>
+      <a href="#c12"><span class="n">&sect;12</span><span>Background jobs: backfill &amp; replication</span></a>
+      <a href="#c13"><span class="n">&sect;13</span><span>The security model</span></a>
+      <a href="#c14"><span class="n">&sect;14</span><span>Feature flags &amp; bounded-context future</span></a>
+      <a href="#c15"><span class="n">&sect;15</span><span>Debugging decision tree &amp; common issues</span></a>
+      <a href="#c16"><span class="n">&sect;16</span><span>The ADR ledger</span></a>
+    </div>
+  </div>
+</header>
+
+<!-- ============================================================ MAIN -->
+<main>
+
+<!-- ====================== PART I ====================== -->
+<div class="part" id="p1">
+  <div class="part-label">Part I</div>
+  <h2 class="part-title">Orientation &mdash; <span class="ital">what it is, what the words mean</span></h2>
+  <p class="part-intro">Before the code: the job this service does, and the small vocabulary that the rest of the system &mdash; and every ADR &mdash; is written in. Skip this and the code will read like noise.</p>
+
+  <section class="chapter" id="c00">
+    <h2><span class="ch-num">&sect;00</span>What this service is &amp; why it exists</h2>
+    <p>
+      <code>haus-rbac-api</code> is the central <strong>authorization</strong> service for Haus. Its one job is to
+      answer, for every other service that needs to gate behaviour: <em>"Can user&nbsp;X perform action&nbsp;A in
+      org&nbsp;O?"</em> It owns role and permission data, resolves user identity from auth tokens, and exposes a
+      small HTTP surface that other backends call synchronously.
+    </p>
+    <p>
+      It is <em>authorization</em>, not <em>authentication</em>. Identity (who you are) comes from Firebase; this
+      service decides what an already-authenticated principal is allowed to do. The model is classic RBAC:
+      <strong>permissions</strong> are bundled into <strong>roles</strong>, and roles are granted to users through
+      <strong>role bindings</strong>, optionally scoped to a single org.
+    </p>
+
+    <div class="idea">
+      <p>The whole system reduces to one sentence: <strong>a user's capabilities are the union of the permissions reachable from their role bindings</strong>, filtered by org membership. Everything else &mdash; the two databases, the jobs, the invariants &mdash; exists to make that sentence true, safe, and fast.</p>
+    </div>
+
+    <h3>Name collision warning</h3>
+    <p>
+      Two unrelated things share the <code>rbac</code> prefix. <code>haus-rbac-api</code> (this repo) is
+      <strong>application-layer</strong> RBAC &mdash; users, roles, permissions, bindings.
+      <code>alloydb-rbac</code> (in <code>gitops_terraform</code>) manages <strong>database-engine GRANTs</strong> on an
+      AlloyDB instance. They share a word and nothing else. Don't conflate them in conversation or code search.
+    </p>
+
+    <h3>What's deliberately <em>not</em> here</h3>
+    <ul class="dash">
+      <li><strong>No groups / teams.</strong> Bindings are per-user by design. A group abstraction would multiply the surface for privilege-escalation bugs and would need its own ADR.</li>
+      <li><strong>No org/user creation.</strong> Org-and-user lifecycle (signup, invites) lives in Harbor + the frontend today. This service is a read-side consumer of those writes (for now &mdash; see ADR-0002, "transitional").</li>
+      <li><strong>No authentication.</strong> Token issuance and verification are Firebase's job; this service only consumes tokens.</li>
+    </ul>
+  </section>
+
+  <section class="chapter" id="c01">
+    <h2><span class="ch-num">&sect;01</span>The domain vocabulary you must know</h2>
+    <p>
+      These terms are part of the contract (defined in <code>CONTEXT.md</code>). They recur in every route,
+      ADR, and migration. Learn them once here.
+    </p>
+
+    <table class="tbl">
+      <thead><tr><th>Term</th><th class="wide">Meaning</th></tr></thead>
+      <tbody>
+        <tr><td>Permission</td><td class="wide">A capability string in <code>entity:action</code> format (e.g. <code>reports:read</code>, <code>roles:create</code>), max 128 chars. Carries an <code>audience</code> (here called <code>permission_type</code>): <code>internal</code> or <code>external</code>.</td></tr>
+        <tr><td>Role</td><td class="wide">A named bundle of permissions. Carries a <code>role_type</code> (<code>internal</code> / <code>external</code>). By invariant, every permission inside a role shares the role's audience. May be <code>immutable</code>.</td></tr>
+        <tr><td>Binding</td><td class="wide">The grant of a role to a user, a row <code>(user_id, org_id, role_id)</code>. <code>org_id = ''</code> means <strong>global</strong> (all orgs); a real id means <strong>org-scoped</strong>.</td></tr>
+        <tr><td>Audience</td><td class="wide">Who a role/permission targets. <code>internal</code> = Haus staff only; <code>external</code> = customer-facing. <strong>Load-bearing</strong> &mdash; see &sect;10.</td></tr>
+        <tr><td>Scope</td><td class="wide">The reach of a binding: <code>global</code> or <code>org-scoped</code>.</td></tr>
+        <tr><td>Staff</td><td class="wide">A Haus employee (identified today via an <code>@hausanalytics.com</code> email on the Firebase record). Always holds at least one global internal binding when active; may also hold org-scoped external bindings (dogfooding / customer-hat).</td></tr>
+        <tr><td>Customer</td><td class="wide">A non-Haus user with access to one or more orgs. <strong>Never</strong> holds a global binding.</td></tr>
+        <tr><td>MSM</td><td class="wide">Marketing Success Manager &mdash; the staff member who owns a customer relationship. Gets an org-scoped <code>Admin</code> <em>and</em> <code>Architect User</code> binding per owned org via the backfill job. The canonical "staff with customer hat."</td></tr>
+        <tr><td>name_as_key</td><td class="wide">The org slug used as the <code>org</code> field in <code>/permissions/check</code> (not the display name). E.g. <code>hausdemo</code>.</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout">
+      <h5>Two "Admin" roles — keep them distinct</h5>
+      <p><code>RBAC Admin</code> is <code>internal</code>, immutable, held <strong>globally</strong> &mdash; for Haus staff to administer the RBAC system itself (<code>roles:*</code>, <code>role_bindings:*</code>, <code>permissions:*</code>). <code>Admin</code> is <code>external</code>, immutable, held <strong>org-scoped</strong> &mdash; "full access to a customer org's product views and settings," granted to MSMs and customer admins. Same word, opposite audience and scope. Never collapse the language.</p>
+    </div>
+
+    <h3>The mid-migration access model (read this twice)</h3>
+    <p>
+      The platform is moving from <strong>"membership = capability"</strong> to <strong>"binding = capability."</strong>
+      The two coexist:
+    </p>
+    <div class="twocol">
+      <div class="col bad"><h5>Legacy (Harbor today)</h5><p>A <code>user_organization</code> row alone confers full access to that org's data. Role bindings are not consulted by most legacy callers.</p></div>
+      <div class="col good"><h5>RBAC (this repo's target)</h5><p>Membership is <em>necessary but not sufficient</em>. The caller must <em>also</em> hold a binding granting the requested permission.</p></div>
+    </div>
+    <p>
+      The migration is per-consumer: each service flips from a legacy membership check to a
+      <code>POST /permissions/check</code> call on its own schedule. Until every consumer flips, all Haus staff
+      retain full access to every customer org (they're auto-added as members at org creation). Closing that
+      exposure is exactly why customer-facing RBAC exists.
+    </p>
+  </section>
+</div>
+
+<!-- ====================== PART II ====================== -->
+<div class="part" id="p2">
+  <div class="part-label">Part II</div>
+  <h2 class="part-title">Architecture &mdash; <span class="ital">how the pieces connect</span></h2>
+  <p class="part-intro">The repo layout maps cleanly onto a layered request pipeline and three deployable pods. Once you see the layering, every file has an obvious home.</p>
+
+  <section class="chapter" id="c02">
+    <h2><span class="ch-num">&sect;02</span>Repo structure &amp; layered architecture</h2>
+    <p>The application package is <code>haus_rbac/</code>. Each subpackage is one layer of a strict HTTP &rarr; service &rarr; model pipeline. Documentation and decisions live at the repo root and under <code>docs/</code>.</p>
+
+    <div class="diagram">haus-rbac-api/
+├── haus_rbac/                 ← the application package
+│   ├── main.py                ← FastAPI app + lifespan (web entrypoint)
+│   ├── worker.py              ← RQ worker entrypoint (+ reconnect supervisor)
+│   ├── scheduler.py           ← APScheduler entrypoint (cron → RQ enqueue)
+│   ├── config.py              ← Pydantic-settings; all env vars live here
+│   ├── feature_flags.py       ← DevCycle per-org role gating
+│   ├── obfuscation.py         ← single source of truth for log masking
+│   ├── request_logging.py     ← middleware: 4MB body cap + structured logs
+│   ├── exceptions.py          ← DependencyUnavailableError, etc.
+│   ├── api/                   ← HTTP BOUNDARY layer
+│   │   ├── dependencies.py    ← require_permission / require_authenticated_user
+│   │   ├── routes/            ← FastAPI routers (permission, role, user, org, health)
+│   │   ├── schemas/           ← Pydantic REQUEST-body models (validation)
+│   │   └── presenters/        ← Pydantic RESPONSE models (serialization)
+│   ├── services/              ← BUSINESS LOGIC layer (permission, org, role_bindings…)
+│   ├── models/                ← DATA layer: Peewee models (MySQL + PG) + plain User
+│   ├── user_sources/          ← token → user record, pluggable adapters (Firebase)
+│   ├── jobs/                  ← RQ job bodies (backfill, firebase replication)
+│   ├── schedules/             ← cron definitions that enqueue those jobs
+│   ├── enums/                 ← VisibilityType, queue names
+│   └── db/                    ← connectors, request-scoped context, migrations/
+├── docs/  (architecture.md, adr/, adding-permissions-and-roles.md)
+├── tests/ (mirrors haus_rbac/ package-for-package)
+├── pentest/ (security test scripts; excluded from lint/coverage)
+└── CONTEXT.md  API_SPEC.md  CONTRIBUTING.md  CLAUDE.md  Dockerfile  Makefile</div>
+
+    <h3>The layering rule</h3>
+    <p>Each layer talks only to the one below it. The discipline is enforced by per-directory <code>CLAUDE.md</code> files and the <code>rbac-patterns</code> skill:</p>
+    <table class="tbl">
+      <thead><tr><th>Layer</th><th class="wide">Responsibility</th><th>May not</th></tr></thead>
+      <tbody>
+        <tr><td>routes</td><td class="wide">Unpack <code>Request</code>/body, call a service, translate the typed result into an HTTP response. Sync handlers (run in FastAPI's thread-pool).</td><td>contain business logic</td></tr>
+        <tr><td>schemas</td><td class="wide">Pydantic models for <em>request bodies</em>; validation lives here.</td><td>serialize responses</td></tr>
+        <tr><td>presenters</td><td class="wide">Pydantic models for <em>responses</em>, extending <code>BasePresenter</code>; serialization lives here.</td><td>hold business logic</td></tr>
+        <tr><td>services</td><td class="wide">Own one domain each; return typed dataclasses (e.g. <code>PermissionResult</code>). Accept models/primitives, not <code>Request</code>.</td><td>touch HTTP or open connections</td></tr>
+        <tr><td>models</td><td class="wide">Peewee ORM; resolve their DB connection from request-scoped context via proxies.</td><td>receive a connection directly</td></tr>
+      </tbody>
+    </table>
+    <div class="callout tip">
+      <h5>Before you touch any layer</h5>
+      <p>The repo asks you to invoke the <code>rbac-patterns</code> skill before adding or changing a route, presenter, schema, service, model, or test. It surfaces the real reference implementation for each layer and validates permission naming. Skip only for typos/imports/comments.</p>
+    </div>
+  </section>
+
+  <section class="chapter" id="c03">
+    <h2><span class="ch-num">&sect;03</span>The three runtime components</h2>
+    <p>One Docker image, three entrypoints, three separately-deployed pods. The split keeps the hot path fast: a slow background job can never degrade <code>/permissions/check</code>.</p>
+
+    <div class="diagram">                         ┌──────────────────────────────┐
+   client services  ───▶  │  haus-rbac-api  (web)         │  python: uvicorn haus_rbac.main:app
+   (Harbor, MCP, …)       │  FastAPI behind GKE Gateway   │  ↳ MySQL + PG via ContextVar
+                          │  /permissions/check /roles …  │  ↳ Redis (rate-limit counters)
+                          └──────────────┬───────────────┘  ↳ DevCycle (optional)
+                                         │ enqueue / consume
+                          ┌──────────────▼───────────────┐
+   cron (UTC) ───────────▶│  haus-rbac-api-scheduler      │  python -m haus_rbac.scheduler
+   :00 backfill           │  APScheduler BlockingScheduler│  (enqueues RQ jobs only)
+   02:00 fb replication   └──────────────┬───────────────┘
+                                         │ Redis queue
+                          ┌──────────────▼───────────────┐
+                          │  haus-rbac-api-*-worker       │  python -m haus_rbac.worker
+                          │  RQ worker + reconnect superv. │  ↳ own DB conns via ContextWorker
+                          └───────────────────────────────┘</div>
+
+    <table class="tbl">
+      <thead><tr><th>Pod</th><th class="wide">Entrypoint &amp; role</th></tr></thead>
+      <tbody>
+        <tr><td>web</td><td class="wide"><code>haus_rbac.main:app</code>. Serves the public API. Opens MySQL + PG via Cloud SQL Connector at startup (lifespan), threads them through each request via a <code>ContextVar</code>. Also opens a Redis client (rate-limit counters) and an optional DevCycle client.</td></tr>
+        <tr><td>worker</td><td class="wide"><code>python -m haus_rbac.worker</code>. An RQ worker on a Redis queue, consuming jobs from <code>haus_rbac/jobs/</code>. Wrapped in an in-process reconnect supervisor so idle Memorystore TLS reaping no longer causes <code>CrashLoopBackOff</code> (it reconnects instead of exiting).</td></tr>
+        <tr><td>scheduler</td><td class="wide"><code>python -m haus_rbac.scheduler</code>. An APScheduler <code>BlockingScheduler</code> that only <em>enqueues</em> RQ jobs on a cron schedule (<code>haus_rbac/schedules/</code>). The worker does the actual work.</td></tr>
+      </tbody>
+    </table>
+    <div class="callout warn">
+      <h5>Why scheduler and worker are separate</h5>
+      <p>The scheduler decides <em>when</em>; the worker does the <em>work</em>. Separating them means a long-running job occupies a worker without blocking the next cron tick, and the web pod stays stateless and fast. Don't move job bodies into the scheduler.</p>
+    </div>
+  </section>
+
+  <section class="chapter" id="c04">
+    <h2><span class="ch-num">&sect;04</span>The two-database split</h2>
+    <p>RBAC spans <strong>two</strong> databases on purpose (ADR-0002). Knowing which table lives where is the single most useful fact for debugging a permission check.</p>
+
+    <div class="twocol">
+      <div class="col bad">
+        <h5>MySQL — shared, read-only here</h5>
+        <p>Owned by <strong>Harbor</strong> (the legacy monolith). Tables: <code>organizations</code>, <code>user_organization</code>, <code>users</code>.</p>
+        <p>This service's MySQL user holds <strong>SELECT grants only</strong>. A write here is an invariant violation, not just bad style. It is the authoritative source for "is this org active?" and "is this user a member?"</p>
+      </div>
+      <div class="col good">
+        <h5>PostgreSQL — RBAC-owned</h5>
+        <p>Fully owned by this service. Tables: <code>roles</code>, <code>permissions</code>, <code>role_permissions</code> (join), <code>role_bindings</code>.</p>
+        <p>Schema in <code>haus_rbac/db/schema_pg.sql</code>; evolved with <strong>dbmate</strong> migrations in <code>haus_rbac/db/migrations/</code>, applied automatically on startup.</p>
+      </div>
+    </div>
+
+    <h3>The PostgreSQL schema (RBAC core)</h3>
+    <pre data-lang="sql"><span class="kw">CREATE TABLE</span> permissions (
+    id            <span class="ty">integer</span> <span class="kw">PRIMARY KEY</span>,
+    name          <span class="ty">varchar</span>(<span class="num">128</span>) <span class="kw">UNIQUE NOT NULL</span>,   <span class="com">-- entity:action</span>
+    description   <span class="ty">text</span> <span class="kw">NOT NULL</span>,
+    permission_type <span class="ty">varchar</span>(<span class="num">32</span>) <span class="kw">DEFAULT</span> <span class="str">'internal'</span>  <span class="com">-- internal | external</span>
+);
+<span class="kw">CREATE TABLE</span> roles (
+    id          <span class="ty">integer</span> <span class="kw">PRIMARY KEY</span>,
+    name        <span class="ty">varchar</span>(<span class="num">128</span>) <span class="kw">UNIQUE NOT NULL</span>,
+    immutable   <span class="ty">boolean</span> <span class="kw">DEFAULT</span> <span class="kw">false</span>,
+    role_type   <span class="ty">varchar</span>(<span class="num">32</span>) <span class="kw">DEFAULT</span> <span class="str">'internal'</span>      <span class="com">-- internal | external</span>
+);
+<span class="kw">CREATE TABLE</span> role_permissions (         <span class="com">-- many-to-many join</span>
+    role_id <span class="ty">int</span>, permission_id <span class="ty">int</span>,
+    <span class="kw">PRIMARY KEY</span> (role_id, permission_id)  <span class="com">-- both FKs ON DELETE CASCADE</span>
+);
+<span class="kw">CREATE TABLE</span> role_bindings (             <span class="com">-- the grant</span>
+    user_id <span class="ty">varchar</span>(<span class="num">36</span>),                  <span class="com">-- Firebase UID</span>
+    org_id  <span class="ty">varchar</span>(<span class="num">64</span>) <span class="kw">DEFAULT</span> <span class="str">''</span>,         <span class="com">-- '' = GLOBAL (all orgs)</span>
+    role_id <span class="ty">int</span> <span class="kw">REFERENCES</span> roles(id) <span class="kw">ON DELETE CASCADE</span>,
+    <span class="kw">PRIMARY KEY</span> (user_id, org_id, role_id)  <span class="com">-- composite key</span>
+);</pre>
+    <p class="code-caption">Note the absence of a standalone index on <code>role_bindings(user_id)</code> — the composite PK's prefix scan covers it for now. See &sect;15 if hot-path latency ever widens.</p>
+
+    <div class="idea">
+      <p><strong>The <code>org_id = ''</code> convention is everywhere.</strong> Empty string means "global, applies to every org." The API boundary translates JSON <code>null</code> &harr; <code>''</code>; the model layer <em>always</em> stores and compares <code>''</code>. A <code>NULL</code> in <code>role_bindings.org_id</code> would be a bug.</p>
+    </div>
+
+    <h3>The fail-closed seam between the two DBs</h3>
+    <p>
+      The two stores can disagree &mdash; e.g. a user is removed from MySQL <code>user_organization</code> while a
+      Postgres <code>role_binding</code> still exists. The permission check resolves this by <strong>failing closed at the
+      MySQL membership step</strong>: no membership &rArr; denied, regardless of the dangling binding. Stale Postgres
+      rows are not actively reconciled today. Deactivating an org (<code>is_active=false</code>) rejects new checks but
+      leaves bindings intact, so reactivation restores prior access &mdash; intentional, but an operator footgun if a
+      customer is offboarded for cause and later reinstated.
+    </p>
+  </section>
+
+  <section class="chapter" id="c05">
+    <h2><span class="ch-num">&sect;05</span>Services &amp; how they interconnect</h2>
+    <p>"Services" has two meanings in this system. Internally, <code>haus_rbac/services/</code> is the business-logic layer. Externally, a handful of <em>other</em> Haus services depend on this one. Both matter.</p>
+
+    <h3>Internal services (the business-logic layer)</h3>
+    <table class="tbl">
+      <thead><tr><th>Module</th><th class="wide">Owns</th></tr></thead>
+      <tbody>
+        <tr><td>permission.py</td><td class="wide">The core: <code>check_permission()</code>, <code>get_permissions_for_user()</code>, <code>get_orgs_for_user[_with_permission]()</code>. Walks MySQL membership + Postgres bindings. Raises <code>DependencyUnavailableError</code> on DB outage.</td></tr>
+        <tr><td>perm_check_rate_limit.py</td><td class="wide">Redis per-subject counter for <code>/permissions/check</code> (60/min). Fails open if Redis is down.</td></tr>
+        <tr><td>role_bindings.py</td><td class="wide">Binding creation/deletion logic, including the audience&ndash;scope validation and org-scoped-caller restrictions.</td></tr>
+        <tr><td>org.py</td><td class="wide">Org resolution / listing helpers.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>External dependencies (what this service talks to)</h3>
+    <table class="tbl">
+      <thead><tr><th>Dependency</th><th class="wide">Role in the system</th></tr></thead>
+      <tbody>
+        <tr><td>MySQL</td><td class="wide">Users, orgs, membership (read-only). Via Cloud SQL Connector / PSC.</td></tr>
+        <tr><td>PostgreSQL</td><td class="wide">Roles, permissions, bindings (RBAC-owned).</td></tr>
+        <tr><td>Redis</td><td class="wide">Memorystore (TLS). RQ queue for worker+scheduler; <code>permcheck:*</code> rate-limit counters for the web pod.</td></tr>
+        <tr><td>Firebase</td><td class="wide">User identity resolution (token &rarr; user) and staff user replication between two projects.</td></tr>
+        <tr><td>DevCycle</td><td class="wide">Feature-flag eval for per-org role visibility in <code>GET /roles</code>. Optional, fail-closed.</td></tr>
+        <tr><td>hehm-api</td><td class="wide"><code>haus-employee-handle-map-api</code> &mdash; the backfill job reads <code>GET /orgs</code> (behind Cloudflare Access) to find each org's MSM.</td></tr>
+        <tr><td>OTel + GCP</td><td class="wide">OpenTelemetry traces (optional), Cloud Logging (structured JSON), Secret Manager (runtime secrets).</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Who calls this service</h3>
+    <p>
+      Six known consumers call <code>POST /permissions/check</code>, each carrying its own copy of
+      <code>rbac_client.py</code> (there is no shared SDK yet &mdash; a known drift surface). Notably,
+      <strong>Harbor</strong> is both a data-provider (it owns the MySQL this service reads) <em>and</em> a consumer
+      (it calls <code>/permissions/check</code> from <code>src/common/rbac_client.py</code>). That makes the
+      Harbor&harr;RBAC relationship a circular runtime dependency &mdash; worth remembering during incidents.
+      Consumers include the external <code>haus-mcp</code> and the customer-identity consumer <strong>Waypoint</strong>
+      (which reads <code>/orgs/me</code>).
+    </p>
+  </section>
+</div>
+
+<!-- ====================== PART III ====================== -->
+<div class="part" id="p3">
+  <div class="part-label">Part III</div>
+  <h2 class="part-title">Developer guide &mdash; <span class="ital">from clone to green PR</span></h2>
+  <p class="part-intro">The blessed path is Tilt inside local-dev-env. There's also a direct-iteration path for editing code with your own tools. Both are below.</p>
+
+  <section class="chapter" id="c06">
+    <h2><span class="ch-num">&sect;06</span>First-time setup, step by step</h2>
+
+    <h3>Path A — Tilt (the blessed local environment)</h3>
+    <p>The service is designed to run inside <a href="https://github.com/HausAnalytics/local-dev-env">local-dev-env</a> via Tilt, which provisions the databases, Redis, and the pods for you.</p>
+    <ol>
+      <li>Set up <code>local-dev-env</code> and run <code>./tilt-up</code> at least once.</li>
+      <li>Export <code>HAUS_HOME</code> pointing at your repos root, e.g. <code>export HAUS_HOME=~/repos</code>.</li>
+      <li>In <code>local-dev-env/conf/config.yaml</code>, uncomment the <code>- haus-rbac-api</code> line.</li>
+      <li>Restart Tilt (<code>ctrl-c</code> then <code>./tilt-up</code>) or reload the resource.</li>
+    </ol>
+    <table class="tbl">
+      <thead><tr><th>What</th><th class="wide">Where</th></tr></thead>
+      <tbody>
+        <tr><td>API</td><td class="wide"><code>http://localhost:8090</code></td></tr>
+        <tr><td>Swagger</td><td class="wide"><code>http://localhost:8090/docs</code> (when <code>DOCS_ENABLED=true</code>)</td></tr>
+        <tr><td>Shell / Tests / Migrations</td><td class="wide">Tilt UI &rarr; <code>haus-rbac-api-web</code> &rarr; buttons ("Shell Pod", "Run Tests", migration Status/Up/Down)</td></tr>
+        <tr><td>Hot-reload</td><td class="wide">Edit any <code>.py</code> &mdash; uvicorn reloads automatically</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Path B — direct iteration on the code</h3>
+    <p>To run tooling against the repo directly you must first authenticate to the private Haus Poetry source (it hosts <code>haus-logger</code> and <code>otel-python-haus</code>):</p>
+    <pre data-lang="bash"><span class="com"># 1. Auth to the haus-infra private Poetry source</span>
+pip install keyrings.google-artifactregistry-auth==<span class="num">1.1.2</span>
+gcloud auth application-default login
+
+<span class="com"># 2. Install dependencies (Python 3.13, Poetry)</span>
+poetry install
+
+<span class="com"># 3. Configure env — copy the example and fill it in</span>
+cp .env.example .env   <span class="com"># MYSQL_*, FIREBASE_*, PG_*, REDIS_* …</span>
+
+<span class="com"># 4. Run the web app</span>
+poetry run uvicorn haus_rbac.main:app --reload --port <span class="num">8090</span>
+
+<span class="com"># 5. (optional) run the worker / scheduler</span>
+poetry run python -m haus_rbac.worker
+poetry run python -m haus_rbac.scheduler</pre>
+    <p class="code-caption">The web app and worker both need the env vars in <code>config.py</code>. Without <code>FIREBASE_GCP_PROJECT</code>, auth fails until configured; without <code>DEVCYCLE_SDK_KEY</code>/<code>HANDLE_MAP_API_BASE_URL</code> the app still boots (those clients are skipped).</p>
+
+    <h3>Configuration: how env vars are wired</h3>
+    <p>
+      Everything is centralized in <code>config.py</code> as nested <code>pydantic-settings</code> classes. Each field uses
+      <code>AliasChoices</code> so the same setting accepts a short name or a prefixed env var. Cloud SQL mode activates
+      automatically when <code>*_INSTANCE_CONNECTION_NAME</code> is set (then it uses IAM auth if the password is empty).
+    </p>
+    <table class="tbl">
+      <thead><tr><th>Prefix</th><th class="wide">Purpose</th></tr></thead>
+      <tbody>
+        <tr><td>MYSQL_*</td><td class="wide">Harbor-owned MySQL (read-only). <code>MYSQL_DATABASE</code> + <code>MYSQL_USER</code> are required.</td></tr>
+        <tr><td>PG_*</td><td class="wide">RBAC-owned PostgreSQL.</td></tr>
+        <tr><td>FIREBASE_* / GOOGLE_APPLICATION_CREDENTIALS</td><td class="wide">Auth. Credential precedence: JSON string &rarr; explicit file path &rarr; ADC.</td></tr>
+        <tr><td>FIREBASE_DEST_*</td><td class="wide">Replication target project + safety toggles (<code>DRY_RUN</code>, <code>PURGE_DESTINATION</code>).</td></tr>
+        <tr><td>REDIS_*</td><td class="wide">RQ + rate-limit. <code>REDIS_TLS=false</code> skips TLS for local-dev.</td></tr>
+        <tr><td>DEVCYCLE_SDK_KEY</td><td class="wide">Feature flags. Unset &rArr; client skipped, flags fall back to defaults.</td></tr>
+        <tr><td>HANDLE_MAP_API_*</td><td class="wide">Backfill client + Cloudflare Access service token.</td></tr>
+        <tr><td>BACKFILL_PRUNE_ENABLED / _DRY_RUN</td><td class="wide">Gate &amp; preview the backfill prune phase (default off).</td></tr>
+        <tr><td>ENVIRONMENT / LOG_LEVEL / DOCS_ENABLED / OTEL_*</td><td class="wide">Runtime behaviour, logging format, docs exposure, tracing.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="chapter" id="c07">
+    <h2><span class="ch-num">&sect;07</span>Daily dev loop: run, migrate, test, PR</h2>
+
+    <h3>Migrations (dbmate)</h3>
+    <p>Postgres migrations are plain SQL in <code>haus_rbac/db/migrations/</code>, applied automatically on startup via <code>dbmate up</code>. Two iron rules:</p>
+    <div class="twocol">
+      <div class="col bad"><h5>Never</h5><p>Create a migration file by hand, or edit an existing one. Manual timestamps have collided across same-day branches and broken ordering.</p></div>
+      <div class="col good"><h5>Always</h5><p>Generate with <code>scripts/dbmate-wrapper.sh new &lt;desc&gt;</code> (or <code>dbmate new</code>). It auto-stamps a collision-free timestamp.</p></div>
+    </div>
+    <pre data-lang="sql"><span class="com">-- migrate:up — always idempotent</span>
+<span class="kw">INSERT INTO</span> permissions (name, description, permission_type) <span class="kw">VALUES</span>
+    (<span class="str">'my_tool:read'</span>, <span class="str">'View My Tool data'</span>, <span class="str">'internal'</span>)
+<span class="kw">ON CONFLICT</span> (name) <span class="kw">DO NOTHING</span>;
+<span class="com">-- migrate:down — only ever delete the NEW rows, never shared ones like orgs:read</span>
+<span class="kw">DELETE FROM</span> permissions <span class="kw">WHERE</span> name <span class="kw">IN</span> (<span class="str">'my_tool:read'</span>);</pre>
+
+    <h3>Validation commands</h3>
+    <pre data-lang="bash">make test                     <span class="com"># run tests in Docker (matches CI)</span>
+make lint                     <span class="com"># pre-commit: ruff check + format</span>
+pre-commit run --all-files    <span class="com"># full suite — REQUIRED before commit</span>
+poetry run pytest tests/      <span class="com"># run locally</span></pre>
+
+    <h3>Branching &amp; merge requirements</h3>
+    <ul class="dash">
+      <li><strong>Never commit to <code>main</code>.</strong> Branch from <code>origin/main</code>: <code>feat/short-description</code> (include a Linear id like <code>feat/INFR-42-…</code> when there is one).</li>
+      <li><strong>Conventional commits</strong>, imperative, lowercase, no trailing period; include the <code>Co-Authored-By:</code> line when pairing with Claude.</li>
+      <li><strong>Coverage gate:</strong> <code>make test-with-cov</code> enforces <code>--cov-fail-under=90</code>. (The README's standalone command uses 95.)</li>
+      <li><strong>PR is mergeable only when:</strong> pre-commit + tests clean locally, CI green, <code>/code-validate</code> reads "ALL 5 AGENTS APPROVED", <code>mergeable=MERGEABLE</code>, and docs updated if behaviour/env/endpoints changed.</li>
+      <li><strong>Deploy:</strong> ArgoCD auto-syncs on merge to <code>main</code>. Rollback = ArgoCD revision rollback, <em>not</em> <code>helm rollback</code>.</li>
+    </ul>
+    <div class="callout danger">
+      <h5>Lint exceptions that are intentional — don't "fix" them</h5>
+      <p><code>E711</code>/<code>E712</code> (comparisons to <code>None</code>/<code>True</code>) are ignored in <code>pyproject.toml</code> because Peewee's ORM <em>requires</em> <code>== None</code> / <code>== True</code> in query expressions. Rewriting them to <code>is None</code> breaks the SQL generation. The <code># noqa: E712</code> comments in <code>permission.py</code> are load-bearing.</p>
+    </div>
+  </section>
+</div>
+
+<!-- ====================== PART IV ====================== -->
+<div class="part" id="p4">
+  <div class="part-label">Part IV</div>
+  <h2 class="part-title">Knowledge base &mdash; <span class="ital">the load-bearing concepts</span></h2>
+  <p class="part-intro">The chapters that pay off most. These are the things that, misunderstood, produce security regressions rather than test failures.</p>
+
+  <section class="chapter" id="c08">
+    <h2><span class="ch-num">&sect;08</span>Deep dive: the permission-check hot path</h2>
+    <p><code>POST /permissions/check</code> is the busiest, most security-sensitive route. It is publicly reachable on the internet at <code>rbac.haus.io</code> with <strong>no route-level auth</strong> &mdash; the caller's identity is the <code>token</code> in the request body. Here is the exact sequence (<code>services/permission.py</code> + <code>permission_routes.py</code>):</p>
+
+    <div class="diagram">POST /permissions/check  { token, org, permission, adapter? }
+   │
+   ├─0  4 MB body cap (RequestLoggingMiddleware) ............ 413 if exceeded
+   ├─1  resolve user from token via user_sources adapter ... 200 {allowed:false} if bad
+   ├─2  per-subject rate limit (Redis permcheck:<uid>:<min>)  200 {allowed:false} if >60/min
+   │      └─ Redis down? FAIL OPEN — request proceeds
+   ├─3  org active?  (MySQL: by org_id or name_as_key) ...... 200 {allowed:false} if inactive/missing
+   ├─4  org membership?  (MySQL user_organization) ......... 200 {allowed:false} if not a member
+   ├─5  permission held?  (PG: binding→role→role_perm→perm)  walk global + this-org bindings
+   └─6  RESPONSE
+          200 {"allowed": true | false}      ← all normal outcomes, incl. every deny
+          422  malformed permission string   ← before any DB/Redis work
+          503  {"detail":"<dep> unavailable"}← Firebase / MySQL / PG unreachable</div>
+
+    <p>The Postgres permission resolution is a single join (<code>RoleBinding.get_allowed_permissions</code>), including both global (<code>org_id=''</code>) and the specific org's bindings:</p>
+    <pre data-lang="python"><span class="kw">def</span> <span class="fn">get_allowed_permissions</span>(cls, user_id, org_id) -&gt; <span class="ty">set</span>[<span class="ty">str</span>]:
+    query = (
+        Permission.select(Permission.name)
+        .join(RolePermission)
+        .join(cls, on=(cls.role_id == RolePermission.role_id))
+        .where((cls.user_id == user_id)
+               &amp; ((cls.org_id == <span class="str">""</span>) | (cls.org_id == org_id)))  <span class="com"># global OR this org</span>
+    )
+    <span class="kw">return</span> {p.name <span class="kw">for</span> p <span class="kw">in</span> query}</pre>
+
+    <div class="idea">
+      <p><strong>Three status codes, three meanings.</strong> <code>200 {allowed:false}</code> = "asked and answered, no." <code>422</code> = "your request was malformed." <code>503</code> = "I couldn't reach a dependency &mdash; retry." Every deny path returns the same <code>200</code> body so an attacker can't distinguish "wrong token" from "no permission" from "rate-limited" (status-code parity, ADR-0003 &sect;2). The <code>503</code> exists precisely so callers can tell <em>denied</em> apart from <em>unavailable</em> (ADR-0007).</p>
+    </div>
+
+    <h3>Other routes reuse the same engine</h3>
+    <p>Non-<code>/permissions/check</code> routes don't open-code auth. They depend on one of two FastAPI dependency factories from <code>api/dependencies.py</code> (split by ADR-0008):</p>
+    <table class="tbl">
+      <thead><tr><th>Dependency</th><th class="wide">Use when</th></tr></thead>
+      <tbody>
+        <tr><td>require_permission("e:a")</td><td class="wide">The route needs a specific permission. Resolves the user, runs <code>check_permission</code> inline, raises <code>403</code> on denial. Passing <code>""</code> raises <code>ValueError</code> at startup — a guardrail.</td></tr>
+        <tr><td>require_authenticated_user()</td><td class="wide">The route needs a valid token but no specific permission (e.g. <code>/permissions/current_user</code>, <code>/orgs/me</code>).</td></tr>
+      </tbody>
+    </table>
+    <p><code>require_permission</code> has knobs: <code>any_scope</code> (admit any holder regardless of org context), <code>global_only</code> (force org to <code>None</code>), <code>alternatives</code> (pass if the user has the primary <em>or</em> any alternative permission), and <code>body_type</code> (resolve <code>org_id</code> from the request body too). A subtle rule: org-prefixed (<code>org_*</code>) alternatives are never satisfied at global scope, so a per-org permission can't be silently admitted globally.</p>
+  </section>
+
+  <section class="chapter" id="c09">
+    <h2><span class="ch-num">&sect;09</span>Deep dive: identity &amp; the two Firebases</h2>
+
+    <h3>The adapter pattern</h3>
+    <p>
+      Token &rarr; user-record resolution lives in <code>user_sources/</code>, a pluggable registry keyed by adapter name
+      (default <code>"firebase"</code>). Adapters implement the <code>UserSource</code> protocol (<code>find_by_token</code>,
+      <code>find_by_ids</code>, <code>find_by_email[_domain]</code>, <code>provision_user</code>) and return plain dicts.
+      The <code>User</code> model is <strong>not</strong> a Peewee model &mdash; it's a plain Python object built from the
+      adapter's dict; it has no table and no DB.
+    </p>
+    <pre data-lang="python"><span class="com"># How a route ends up with a User — no DB row involved</span>
+auth = get_user_from_token(token, adapter)   <span class="com"># → TokenAuthResult</span>
+<span class="com"># adapter.find_by_token() returns None (invalid) OR raises:</span>
+<span class="com">#   DisabledAccountError  → account disabled in Firebase</span>
+<span class="com">#   RevokedTokenError     → auth_time missing or predates revocation cutoff</span>
+<span class="com"># the dependency layer maps these to 401 with distinct audit error= fields</span></pre>
+
+    <h3>Why there are two Firebase projects</h3>
+    <p>A company-wide migration (owned by another team) is moving from a legacy Firebase project to a new one. This service is a <em>consumer</em> of that migration, not its driver.</p>
+    <table class="tbl">
+      <thead><tr><th>Project</th><th class="wide">Role</th></tr></thead>
+      <tbody>
+        <tr><td>Source (legacy)</td><td class="wide">Used by Harbor; MySQL <code>users</code> keys match source UIDs.</td></tr>
+        <tr><td>Destination (new)</td><td class="wide">What this service validates tokens against on <code>rbac.haus.io</code>. ADR-0003's JWT issuer pin targets this project.</td></tr>
+      </tbody>
+    </table>
+    <p>
+      Replication is <strong>UID-preserving</strong>: a staff member has the <em>same UID in both projects</em>, so Harbor's
+      <code>(user_id, org_id)</code> rows keep matching destination-issued tokens. <strong>Customers are
+      destination-only</strong> &mdash; source Firebase is never in the customer path (resolved in ADR-0006). Token
+      revocation strategy: the 1-hour Firebase TTL is trusted; no active revocation is performed.
+    </p>
+  </section>
+
+  <section class="chapter" id="c10">
+    <h2><span class="ch-num">&sect;10</span>Deep dive: the audience&ndash;scope invariant</h2>
+    <p>This is the single most load-bearing rule in the system (ADR-0001, amended 2026-05-19). Internalize it.</p>
+
+    <div class="pull">audience = external &rArr; scope = org<br>(audience = internal permits either scope)</div>
+
+    <p>Equivalently:</p>
+    <ul class="dash">
+      <li>An <strong>external</strong> role can only be granted via an <strong>org-scoped</strong> binding (a customer never gets global power).</li>
+      <li>An <strong>internal</strong> role may be granted <strong>globally</strong> (full staff authority) <em>or</em> <strong>org-scoped</strong> (the 2026-05-19 amendment, for narrow "staff inside one org" authority &mdash; e.g. an MCP role bound at one customer org).</li>
+      <li>A <strong>customer</strong> never holds a global binding; <strong>staff</strong> may hold any combination.</li>
+    </ul>
+
+    <h3>The derived privilege-escalation rule</h3>
+    <p>A caller may create binding <code>B</code> only if some binding <code>C</code> of theirs satisfies <code>C.audience == B.audience</code> <strong>and</strong> <code>C.scope ⊇ B.scope</code> (global ⊇ org-scoped; equal scopes OK if orgs match). There is no cross-audience grant authority &mdash; an external admin cannot mint internal power.</p>
+
+    <div class="callout warn">
+      <h5>Enforcement is code-only today</h5>
+      <p>The invariant is enforced indirectly in service-layer validation and route restrictions, not yet as a DB-level <code>CHECK</code> on <code>role_bindings</code>. That's the target state. Treat any code that creates bindings as security-critical &mdash; a bug here is a privilege-escalation bug, not a 500.</p>
+    </div>
+
+    <h3>The audience-split (the inverse, for listing endpoints)</h3>
+    <p>
+      When listing bindings/users for a <strong>customer</strong> org, Haus-internal-domain users
+      (<code>@hausanalytics.com</code> / <code>@haus.io</code>) are <em>stripped</em> from the response &mdash; customers
+      shouldn't see Haus staff bound to their org. The exception list is
+      <code>INTERNAL_MEMBERS_ALLOWED_ORGS = {hausdemo, hausstore}</code>. The opt-in inverse
+      (<code>include_internal_users=true</code>) exists for the internal staff-access tool and is gated server-side on
+      the caller's email domain &mdash; a customer admin cannot use it to enumerate staff. This filter axis being
+      "request context" rather than "caller identity" caused a real regression on 2026-05-20; the long-term fix is
+      ADR-0009's bounded contexts (&sect;14).
+    </p>
+  </section>
+
+  <section class="chapter" id="c11">
+    <h2><span class="ch-num">&sect;11</span>Designing permissions &amp; roles</h2>
+    <p>Adding a permission/role is a migration plus, usually, a <code>require_permission</code> call site. The hard part is the <em>naming and scoping decision</em>.</p>
+
+    <h3>Naming: <code>entity:action</code></h3>
+    <ul class="dash">
+      <li><strong>Entity = the resource being protected, never a team name.</strong> <code>crosswalk_download:read</code> good; <code>data_science:read</code> bad (that's a team).</li>
+      <li>Action is the operation: <code>read</code>, <code>create</code>, <code>update</code>, <code>delete</code>, <code>write</code>.</li>
+      <li>Must match <code>^[a-z][a-z0-9_]*:[a-z][a-z0-9_]*$</code>, max 128 chars.</li>
+    </ul>
+
+    <h3>General vs subsystem-scoped — the decision tree</h3>
+    <div class="diagram">Will this permission protect an endpoint in a NEW subsystem?
+├─ YES → Will that endpoint resolve data accessed from OTHER subsystems?
+│  ├─ YES → General entity        (e.g. orgs:read)
+│  └─ NO  → Subsystem-scoped      (e.g. launch_tracker:read)
+└─ NO  → Is the endpoint already protected by another permission?
+   ├─ YES → Reuse that existing permission
+   └─ NO  → Does this data entity also exist in other subsystems?
+      ├─ YES → General entity     (e.g. users:read)
+      └─ NO  → Subsystem-scoped   (e.g. wharf_connections:read)</div>
+    <p>The trap is <strong>over-generalizing</strong>: a general permission grants access <em>everywhere it's checked</em>. If your tool needs only a narrow slice of an entity, scope it to your subsystem (<code>mcp_internal_kpis:read</code>) so you don't silently widen access elsewhere.</p>
+
+    <div class="twocol">
+      <div class="col good"><h5>Reuse, don't duplicate</h5><p>Need org data? Reference the existing <code>orgs:read</code>, not a new <code>my_tool:orgs_read</code>. A role can mix new and existing permissions.</p></div>
+      <div class="col bad"><h5>Don't over-scope either</h5><p>If data genuinely spans subsystems, one general permission beats duplicating scoped copies everywhere.</p></div>
+    </div>
+
+    <h3>Role properties &amp; the immutability rule</h3>
+    <p>
+      Default new roles to <code>role_type='internal'</code>, <code>immutable=false</code>. <code>immutable=true</code> is
+      set at create time only (no inverse toggle) and locks the role against update/delete via the API &mdash; reserved
+      for system-seeded roles (<code>Admin</code>, <code>RBAC Admin</code>, <code>DataOnboardingWorkflowsExecutor</code>,
+      <code>OrgNamesUpdater</code>). <code>DELETE /roles/{id}</code> refuses with <code>409</code> if <em>any</em> binding
+      references the role (ADR-0005) &mdash; remove bindings first; the old cascade-to-bindings behaviour was rejected for
+      its mass-revocation risk.
+    </p>
+  </section>
+
+  <section class="chapter" id="c12">
+    <h2><span class="ch-num">&sect;12</span>Background jobs: backfill &amp; replication</h2>
+    <p>Two cron jobs run via scheduler &rarr; RQ &rarr; worker. Both are <strong>additive-only by default</strong> &mdash; a deliberate choice after a real incident.</p>
+
+    <h3><code>admin_role_backfill</code> — hourly at :00 UTC</h3>
+    <ul class="dash">
+      <li>Pulls <code>GET /orgs</code> from hehm-api (Cloudflare Access fenced) to find each active org's MSM (by <code>haus_owner_email</code>).</li>
+      <li>For every active <code>(org, MSM)</code> pair, ensures <strong>both</strong> an org-scoped <code>Admin</code> and an org-scoped <code>Architect User</code> binding exist (<strong>strict-pair semantics</strong>). Idempotent &mdash; skips existing, never updates.</li>
+      <li>If either role row is missing from <code>roles</code>, the whole run raises <code>RuntimeError</code> and writes nothing &mdash; fails loud rather than partial.</li>
+      <li><strong>Prune phase is disabled by default</strong> (<code>BACKFILL_PRUNE_ENABLED=false</code>). It once swept manual <code>Admin</code> grants on a demo org absent from hehm-api's <code>/orgs</code>. Re-enable only after adding binding provenance (e.g. <code>role_bindings.managed_by</code>) so manual grants survive; run first with <code>BACKFILL_DRY_RUN=true</code>.</li>
+    </ul>
+
+    <h3><code>firebase_user_replication</code> — daily at 02:00 UTC</h3>
+    <ul class="dash">
+      <li>One-way, additive-only replication of <strong>Haus-domain users only</strong> (source &rarr; destination Firebase). UIDs preserved, email collisions skipped, domain filter via <code>FIREBASE_DEST_ALLOWED_EMAIL_DOMAINS</code>.</li>
+      <li>Customers never flow through this job &mdash; they enter destination Firebase via signup.</li>
+    </ul>
+    <div class="callout danger">
+      <h5>FIREBASE_DEST_PURGE_DESTINATION is a loaded gun</h5>
+      <p>Setting it <strong>deletes every destination Firebase user and exits.</strong> It's a plain boolean with no typed-confirmation guard, by deliberate choice. The operator runbook <em>must</em> require a <code>DRY_RUN=true</code> invocation first (to log the would-be-deleted count) and a written change ticket before flipping it. Treat it as a manual operator action, never an automated path.</p>
+    </div>
+  </section>
+
+  <section class="chapter" id="c13">
+    <h2><span class="ch-num">&sect;13</span>The security model</h2>
+    <p>Because <code>/permissions/check</code> is reachable from anywhere (six consumers, including external <code>haus-mcp</code>), every defence lives in the <strong>application layer</strong>, not at the network edge. That is a load-bearing decision, not a gap.</p>
+
+    <table class="tbl">
+      <thead><tr><th>Control</th><th class="wide">What it does</th></tr></thead>
+      <tbody>
+        <tr><td>4 MB body cap</td><td class="wide"><code>RequestLoggingMiddleware</code> rejects oversized POST/PUT/PATCH bodies with <code>413</code> before any handler &mdash; guards memory on the unauthenticated endpoint.</td></tr>
+        <tr><td>Status-code parity</td><td class="wide">Every deny returns identical <code>200 {allowed:false}</code> (ADR-0003 &sect;2) &mdash; no side-channel enumeration.</td></tr>
+        <tr><td>Per-subject rate limit</td><td class="wide">60 checks/min/subject via Redis; fails open if Redis is down.</td></tr>
+        <tr><td>Oracle collapse: 404 over 403</td><td class="wide">Resource-existence endpoints (e.g. <code>GET /users/{id}</code>) return <code>404</code> for both "doesn't exist" and "exists but not visible to you" &mdash; you can't probe existence.</td></tr>
+        <tr><td>Audit log lines</td><td class="wide">Mutations emit <code>rbac.binding.created/deleted/refused</code> with identifier fields <em>and</em> <code>role_name</code> so access changes are answerable from logs alone.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Log masking policy (<code>obfuscation.py</code> — single source of truth)</h3>
+    <div class="twocol">
+      <div class="col good"><h5>Flow through unmasked (identifiers)</h5><p><code>user_id</code>, <code>org_id</code>, <code>role_id</code>, <code>binding_id</code>, <code>org</code>. These are stable references operators need, <em>not</em> PII.</p></div>
+      <div class="col bad"><h5>Always masked to *** (PII)</h5><p><code>email</code>, <code>token</code>, <code>password</code>, <code>secret</code>, <code>api_key</code>, <code>authorization</code>, <code>phone</code> — plus any JWT-shaped value regardless of key, plus anything nested beyond one level.</p></div>
+    </div>
+    <p>If you add a genuinely-PII field, extend <code>_PII_KEYS</code>. Never add an identifier to that list &mdash; it would blind operators investigating access changes.</p>
+  </section>
+
+  <section class="chapter" id="c14">
+    <h2><span class="ch-num">&sect;14</span>Feature flags &amp; the bounded-context future</h2>
+
+    <h3>Per-org role visibility (DevCycle)</h3>
+    <p>
+      <code>GET /roles?org_id=&lt;id&gt;</code> filters its response per-org. A static map
+      <code>ROLE_NAME_TO_FLAG</code> in <code>feature_flags.py</code> pairs role <em>names</em> with DevCycle flag keys
+      (e.g. <code>Architect User</code> &rarr; <code>arch-show-architect-in-app</code>). A gated role whose flag is
+      <code>False</code> for that org is dropped; unmapped roles always pass through. The lookup is by role name, not
+      permission prefix, so permission naming can evolve without affecting visibility.
+    </p>
+    <div class="callout warn">
+      <h5>Fail-closed</h5>
+      <p>If DevCycle is unreachable or errors, <code>is_org_flag_enabled</code> returns its <code>False</code> default &mdash; gated roles <em>disappear</em>. Un-gated roles are unaffected. Existing bindings keep working regardless; only the <em>listing</em> is filtered. <code>customData</code> exposes <code>orgId</code> and <code>orgNameAsKey</code> for targeting rules.</p>
+    </div>
+
+    <h3>Where this is heading: ADR-0009 bounded contexts</h3>
+    <p>
+      The same routes serve two audiences (customer admins vs Haus staff) with the audience-split rule living inside
+      handlers as conditionals gated on request context. That shape produced the 2026-05-20 regression. The accepted
+      direction is to split at the route layer &mdash; <strong>the URL becomes the policy declaration</strong>:
+    </p>
+    <table class="tbl">
+      <thead><tr><th>Context</th><th class="wide">Shape</th></tr></thead>
+      <tbody>
+        <tr><td>Customer RBAC</td><td class="wide"><code>/orgs/{org_id}/...</code> &mdash; audience-split <em>always on</em>, gated on <code>org_*</code> permissions.</td></tr>
+        <tr><td>Staff RBAC</td><td class="wide"><code>/staff/...</code> &mdash; audience-split <em>does not apply</em> (these exist to show staff); gated on Haus-internal email domain + permission, enforced at the route boundary.</td></tr>
+      </tbody>
+    </table>
+    <p>Models, migrations, and the core services (<code>check_permission</code>, audience validation) stay shared. This eventually removes <code>INTERNAL_MEMBERS_ALLOWED_ORGS</code> and the <code>include_internal_users</code> flag.</p>
+  </section>
+</div>
+
+<!-- ====================== PART V ====================== -->
+<div class="part" id="p5">
+  <div class="part-label">Part V</div>
+  <h2 class="part-title">Operating it &mdash; <span class="ital">when something's wrong</span></h2>
+  <p class="part-intro">A decision tree for the most common confusion ("why was this denied?"), the gotchas that bite newcomers, and a map of the decisions you can't recover from the code alone.</p>
+
+  <section class="chapter" id="c15">
+    <h2><span class="ch-num">&sect;15</span>Debugging decision tree &amp; common issues</h2>
+
+    <h3>"My <code>/permissions/check</code> returned the wrong thing"</h3>
+    <div class="diagram">What did you get back?
+│
+├─ 422  → malformed `permission` (must match entity:action) or missing body field.
+│         Fix the request shape; nothing reached the DB.
+│
+├─ 503  → a dependency is down (body says which: firebase / mysql / postgres).
+│         This is NOT a deny. Retry. Check the dependency, not the bindings.
+│
+└─ 200 {"allowed": false}  → a genuine deny. Walk the path in order:
+     1. Token valid?      → check logs for auth error= (invalid_token/disabled/revoked)
+     2. Rate-limited?     → >60/min for this subject this minute? (Redis permcheck:*)
+     3. Org active?       → MySQL organizations.is_active for that org_id/name_as_key
+     4. Member of org?    → MySQL user_organization row exists for (user, org)?
+     5. Permission held?  → PG: does a binding→role→permission path grant it
+                            for org_id='' (global) OR this org_id?
+        ↳ remember: org-scoped bindings for OTHER orgs are intentionally excluded.</div>
+
+    <div class="callout tip">
+      <h5>The logs answer most of it</h5>
+      <p>Each check emits a structured <code>permission_check</code> line with <code>outcome</code>, <code>reason</code> (e.g. "org deactivated", "user does not have access to org", "no roles for user in org", "permission denied on org bindings"), plus unmasked <code>user_id</code>/<code>org_id</code>/<code>org</code>. Grep those before touching code.</p>
+    </div>
+
+    <h3>Common issues &amp; gotchas</h3>
+    <table class="tbl">
+      <thead><tr><th>Symptom</th><th class="wide">Cause / fix</th></tr></thead>
+      <tbody>
+        <tr><td class="norm">"DB context not set" RuntimeError</td><td class="wide">A model was called without request-scoped DB context. Routes must depend on <code>require_permission</code>/<code>require_authenticated_user</code> or be decorated <code>@with_request_dbs</code> (first param <code>Request</code>). Never call <code>set_request_dbs</code> outside a request/job lifecycle.</td></tr>
+        <tr><td class="norm">Global binding not granting org access</td><td class="wide">Working as designed for <em>some</em> endpoints. <code>get_orgs_for_user_with_permission</code> and <code>/orgs/me?permission=</code> intentionally exclude global bindings — they answer "which specific orgs grant this," not "does the user have it somewhere."</td></tr>
+        <tr><td class="norm">Staff member missing from a customer-org user list</td><td class="wide">The audience-split filter strips <code>@hausanalytics.com</code>/<code>@haus.io</code> users from customer-org responses (unless the org is in <code>{hausdemo, hausstore}</code>). Use the unscoped list, or <code>include_internal_users=true</code> as an internal-domain caller.</td></tr>
+        <tr><td class="norm">Can't delete a role (409)</td><td class="wide">Bindings still reference it (ADR-0005). List them (mind the audience filter when scoped to a customer org), delete each, then delete the role. Or it's <code>immutable</code> — those can't be deleted at all.</td></tr>
+        <tr><td class="norm">Worker CrashLoopBackOff on Redis blips</td><td class="wide">Should not happen anymore — the reconnect supervisor (<code>run_worker_with_reconnect</code>) rebuilds the Redis connection on transient drops. If it recurs, the supervisor is the place to look.</td></tr>
+        <tr><td class="norm">FastAPI thread-pool stalls on /permissions/check</td><td class="wide">The web pod uses <code>get_api_connection()</code> with a 2s Redis socket timeout (INFR-513) so a stale Memorystore connection stalls 2s, not 120s. Don't swap it for the long-timeout worker connection.</td></tr>
+        <tr><td class="norm">Migration ordering conflict</td><td class="wide">Someone hand-created a file. Regenerate with <code>dbmate new</code>; never hand-stamp timestamps or edit applied migrations.</td></tr>
+        <tr><td class="norm">Manual Admin grant vanished overnight</td><td class="wide">The backfill prune phase. It's off by default now; if re-enabled, manual grants on orgs absent from hehm-api's <code>/orgs</code> get swept until binding provenance lands.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="chapter" id="c16">
+    <h2><span class="ch-num">&sect;16</span>The ADR ledger</h2>
+    <p>Architecture Decision Records under <code>docs/adr/</code> capture load-bearing choices not recoverable from code. <strong>Read the relevant ADR before changing that area</strong> &mdash; each encodes a reason (often an incident) you can't see in the diff.</p>
+    <table class="tbl">
+      <thead><tr><th>ADR</th><th class="wide">Decision</th></tr></thead>
+      <tbody>
+        <tr><td>0001</td><td class="wide">The audience&ndash;scope invariant (external &rArr; org-scoped). Amended 2026-05-19 to allow org-scoped internal bindings. &sect;10.</td></tr>
+        <tr><td>0002</td><td class="wide">Two-DB ownership boundary (MySQL read-only / Postgres owned). Gateway pattern is transitional.</td></tr>
+        <tr><td>0003</td><td class="wide"><code>/permissions/check</code> abuse resistance: rate limit, status-code parity, audit log.</td></tr>
+        <tr><td>0004</td><td class="wide">Admin-role lifecycle (additive backfill; why offboarding is additive-only).</td></tr>
+        <tr><td>0005</td><td class="wide">Role deletion refuses with <code>409</code> when bindings exist (no cascade).</td></tr>
+        <tr><td>0006</td><td class="wide">Customer onboarding &amp; the membership&rarr;binding migration; customer UIDs are destination-only.</td></tr>
+        <tr><td>0007</td><td class="wide"><code>503</code> on dependency outage so callers distinguish denied from unavailable.</td></tr>
+        <tr><td>0008</td><td class="wide">Splitting <code>require_permission</code> into two dependencies (+ <code>require_authenticated_user</code>).</td></tr>
+        <tr><td>0009</td><td class="wide">Bounded contexts: customer-facing (<code>/orgs/{id}/...</code>) vs staff-facing (<code>/staff/...</code>) routes. &sect;14.</td></tr>
+      </tbody>
+    </table>
+
+    <div class="idea">
+      <p><strong>The five-document reading order</strong> when a term feels fuzzy: <code>README.md</code> &rarr; <code>CONTEXT.md</code> (glossary; the audience&ndash;scope invariant is load-bearing) &rarr; <code>docs/architecture.md</code> &rarr; the relevant <code>docs/adr/</code> &rarr; <code>API_SPEC.md</code> &rarr; <code>CONTRIBUTING.md</code> &rarr; <code>docs/adding-permissions-and-roles.md</code>. Each builds on the previous.</p>
+    </div>
+
+    <div class="rule-sep"></div>
+
+    <p style="font-style:italic;color:var(--ink-faint);text-align:center;">
+      That's the whole surface: one service, three pods, two databases, one invariant, and a small pile of hard-won
+      decisions. When in doubt, read the log line, then the ADR &mdash; in that order.
+    </p>
+  </section>
+</div>
+
+</main>
+
+<!-- ============================================================ FOOTER -->
+<footer>
+  <h4>Where to look next</h4>
+  <div class="resources">
+    <ul>
+      <li><code>CONTEXT.md</code> — domain glossary; the contract for every term used above</li>
+      <li><code>docs/architecture.md</code> — runtime components, request flow, deploy topology</li>
+      <li><code>API_SPEC.md</code> — the full endpoint contract (shapes, auth, per-route permissions)</li>
+      <li><code>docs/adr/</code> — the nine decision records (read before changing that area)</li>
+      <li><code>docs/adding-permissions-and-roles.md</code> — step-by-step for new permissions/roles</li>
+      <li><code>CONTRIBUTING.md</code> — install, branching, merge requirements</li>
+      <li><code>haus_rbac/services/permission.py</code> — the permission-check engine</li>
+      <li><code>haus_rbac/api/dependencies.py</code> — <code>require_permission</code> / <code>require_authenticated_user</code></li>
+      <li><code>haus_rbac/config.py</code> — every env var, in one place</li>
+      <li><code>rbac-patterns</code> skill — per-layer checklists before you edit</li>
+      <li><code>#ask-infra-engineering</code> — runbooks &amp; on-call (Notion)</li>
+    </ul>
+  </div>
+</footer>
+
+</body>
+</html>
