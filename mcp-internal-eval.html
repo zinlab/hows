@@ -1,0 +1,1355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Evaluating haus-mcp-internal — A Design Review</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,400;1,9..144,500&family=Inter+Tight:ital,wght@0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:ital,wght@0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   DESIGN SYSTEM — "Infrastructure Field Manual"
+   Warm parchment · ink · ember accent · earthy domain taxonomy
+   ============================================================ */
+:root{
+  /* paper + ink */
+  --paper:#f4f1e9;
+  --paper-2:#ebe5d8;
+  --paper-3:#e2dbc9;
+  --ink:#1d1a15;
+  --ink-2:#3a352c;
+  --ink-soft:#5c5446;
+  --ink-faint:#8a8071;
+  --rule:#cdc4b0;
+  --rule-soft:#dcd4c2;
+
+  /* accent */
+  --accent:#b6452c;
+  --accent-2:#943219;
+  --accent-tint:#f0d8cc;
+
+  /* code surface (dark, warm) */
+  --code-bg:#211e17;
+  --code-bg-2:#2c2820;
+  --code-fg:#e9e2d2;
+  --code-dim:#9c9483;
+  --code-line:#393327;
+  --code-key:#d98a5b;     /* keywords / accent */
+  --code-str:#9bb06a;     /* strings */
+  --code-num:#c89a4a;     /* numbers */
+  --code-com:#7d7561;     /* comments */
+  --code-fn:#6fa8a0;      /* functions */
+  --code-bad:#d56b59;
+  --code-good:#9bb06a;
+
+  /* domain taxonomy */
+  --c-found:#2f6f6a;   /* foundations  — teal      */
+  --c-tool:#b6452c;    /* tool design  — ember     */
+  --c-schema:#b3852b;  /* schema / IO  — ochre      */
+  --c-sem:#3a6ea0;     /* semantics    — steel blue */
+  --c-scale:#5f7d2e;   /* scaling      — moss       */
+  --c-sec:#9c2f3f;     /* security     — oxblood    */
+  --c-ops:#5a6b82;     /* ops / eval   — slate      */
+
+  /* type */
+  --display:"Fraunces",Georgia,"Times New Roman",serif;
+  --body:"Inter Tight",-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+
+  --maxw:1220px;
+  --reading:720px;
+}
+
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%;}
+body{
+  margin:0;
+  background-color:var(--paper);
+  background-image:
+    radial-gradient(circle at 12% -8%, rgba(182,69,44,.05), transparent 42%),
+    radial-gradient(circle at 96% 4%, rgba(47,111,106,.05), transparent 40%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
+  color:var(--ink);
+  font-family:var(--body);
+  font-size:17px;
+  line-height:1.68;
+  font-weight:400;
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+}
+
+/* reading-progress bar */
+#progress{position:fixed;top:0;left:0;height:3px;width:0%;
+  background:linear-gradient(90deg,var(--accent),var(--accent-2));z-index:200;
+  transition:width .1s linear;}
+
+/* ------------------------------------------------------------------ */
+/* MASTHEAD                                                            */
+/* ------------------------------------------------------------------ */
+.masthead{max-width:var(--maxw);margin:0 auto;padding:64px 32px 0;}
+.mast-kicker{font-family:var(--mono);font-size:12px;letter-spacing:.34em;
+  text-transform:uppercase;color:var(--accent-2);font-weight:500;
+  display:flex;flex-wrap:wrap;gap:14px;align-items:center;}
+.mast-kicker .dot{width:5px;height:5px;border-radius:50%;background:var(--accent);display:inline-block;}
+.mast-title{font-family:var(--display);font-weight:600;
+  font-size:clamp(2.7rem,7vw,5.4rem);line-height:.98;letter-spacing:-.022em;
+  margin:.32em 0 .18em;color:var(--ink);font-optical-sizing:auto;}
+.mast-title em{font-style:italic;color:var(--accent);}
+.mast-rule{height:2px;background:var(--ink);margin:18px 0;
+  position:relative;}
+.mast-rule::after{content:"";position:absolute;right:0;top:-3px;width:90px;height:8px;background:var(--accent);}
+.standfirst{font-family:var(--display);font-weight:400;font-size:clamp(1.15rem,2.4vw,1.5rem);
+  line-height:1.5;color:var(--ink-2);max-width:50ch;margin:0 0 28px;}
+.standfirst b{font-weight:600;color:var(--ink);}
+.mast-meta{display:flex;flex-wrap:wrap;gap:0;border-top:1px solid var(--rule);
+  border-bottom:1px solid var(--rule);margin-bottom:8px;}
+.mast-meta .cell{padding:14px 26px 14px 0;margin-right:26px;border-right:1px solid var(--rule);}
+.mast-meta .cell:last-child{border-right:none;}
+.mast-meta .k{font-family:var(--mono);font-size:10.5px;letter-spacing:.18em;
+  text-transform:uppercase;color:var(--ink-faint);display:block;margin-bottom:3px;}
+.mast-meta .v{font-family:var(--mono);font-size:13px;color:var(--ink-2);font-weight:500;}
+
+/* ------------------------------------------------------------------ */
+/* LAYOUT GRID                                                         */
+/* ------------------------------------------------------------------ */
+.shell{max-width:var(--maxw);margin:0 auto;padding:0 32px 100px;
+  display:grid;grid-template-columns:236px minmax(0,1fr);gap:56px;align-items:start;}
+@media(max-width:1000px){.shell{grid-template-columns:1fr;gap:0;}}
+
+/* table of contents */
+.toc{position:sticky;top:24px;align-self:start;font-size:13.5px;}
+.toc-head{font-family:var(--mono);font-size:10.5px;letter-spacing:.2em;
+  text-transform:uppercase;color:var(--ink-faint);margin:0 0 14px;
+  padding-bottom:10px;border-bottom:1px solid var(--rule);}
+.toc ol{list-style:none;margin:0;padding:0;counter-reset:toc;}
+.toc li{counter-increment:toc;margin:0;}
+.toc a{display:flex;gap:10px;align-items:baseline;text-decoration:none;
+  color:var(--ink-soft);padding:6px 8px 6px 0;border-left:2px solid transparent;
+  padding-left:12px;margin-left:-2px;transition:all .15s;line-height:1.32;}
+.toc a::before{content:counter(toc,decimal-leading-zero);font-family:var(--mono);
+  font-size:10.5px;color:var(--ink-faint);min-width:20px;}
+.toc a:hover{color:var(--ink);background:var(--paper-2);}
+.toc a.active{color:var(--accent-2);border-left-color:var(--accent);font-weight:600;}
+.toc a.active::before{color:var(--accent);}
+.toc .appx a::before{content:"§";min-width:20px;}
+.toc-foot{margin-top:20px;padding-top:14px;border-top:1px solid var(--rule);
+  font-family:var(--mono);font-size:10.5px;color:var(--ink-faint);line-height:1.6;}
+
+@media(max-width:1000px){
+  .toc{position:static;margin:8px 0 24px;border:1px solid var(--rule);
+    border-radius:10px;background:var(--paper-2);}
+  .toc>details{padding:6px 14px 14px;}
+  .toc>details>summary{cursor:pointer;font-family:var(--mono);font-size:11px;
+    letter-spacing:.2em;text-transform:uppercase;color:var(--accent-2);
+    padding:10px 0;font-weight:600;list-style:none;}
+  .toc>details>summary::-webkit-details-marker{display:none;}
+  .toc>details>summary::after{content:" ▸";}
+  .toc>details[open]>summary::after{content:" ▾";}
+  .toc-head{display:none;}
+}
+.toc-desktop{display:block;}
+@media(max-width:1000px){.toc-desktop{display:none;}}
+.toc-mobile{display:none;}
+@media(max-width:1000px){.toc-mobile{display:block;}}
+
+/* ------------------------------------------------------------------ */
+/* CHAPTERS                                                            */
+/* ------------------------------------------------------------------ */
+.chapter{padding-top:46px;margin-top:40px;border-top:1px solid var(--rule);
+  scroll-margin-top:18px;}
+.chapter:first-of-type{border-top:none;margin-top:24px;padding-top:24px;}
+.ch-tax{display:inline-flex;align-items:center;gap:8px;font-family:var(--mono);
+  font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:500;
+  padding:4px 11px;border-radius:100px;color:#fff;margin-bottom:18px;}
+.ch-num{font-family:var(--mono);font-size:13px;color:var(--ink-faint);
+  letter-spacing:.1em;}
+h2.ch-title{font-family:var(--display);font-weight:600;
+  font-size:clamp(1.9rem,4.2vw,2.9rem);line-height:1.04;letter-spacing:-.018em;
+  margin:.1em 0 .5em;color:var(--ink);}
+.ch-lede{font-family:var(--display);font-style:italic;font-weight:400;
+  font-size:1.22rem;line-height:1.5;color:var(--ink-2);max-width:60ch;
+  margin:0 0 1.6em;padding-left:18px;border-left:2px solid var(--accent);}
+
+.prose{max-width:var(--reading);}
+.prose.wide{max-width:none;}
+.prose p{margin:0 0 1.15em;}
+.prose h3{font-family:var(--display);font-weight:600;font-size:1.42rem;
+  line-height:1.18;letter-spacing:-.01em;margin:1.9em 0 .55em;color:var(--ink);}
+.prose h4{font-family:var(--body);font-weight:700;font-size:.86rem;
+  letter-spacing:.08em;text-transform:uppercase;color:var(--accent-2);
+  margin:1.7em 0 .5em;}
+.prose ul,.prose ol{margin:0 0 1.2em;padding-left:1.3em;}
+.prose li{margin:0 0 .5em;padding-left:.3em;}
+.prose li::marker{color:var(--accent);}
+.prose ol li::marker{font-family:var(--mono);font-size:.85em;color:var(--ink-faint);}
+.prose strong{font-weight:600;color:var(--ink);}
+.prose em{font-style:italic;}
+.prose a{color:var(--accent-2);text-decoration:underline;text-decoration-thickness:1px;
+  text-underline-offset:2px;text-decoration-color:var(--accent-tint);}
+.prose a:hover{text-decoration-color:var(--accent);}
+
+/* drop cap on opening */
+.dropcap::first-letter{font-family:var(--display);font-weight:600;float:left;
+  font-size:4.1rem;line-height:.78;padding:.06em .09em 0 0;color:var(--accent);}
+
+/* inline code */
+code{font-family:var(--mono);font-size:.86em;background:var(--paper-3);
+  color:var(--accent-2);padding:.12em .42em;border-radius:5px;
+  border:1px solid var(--rule-soft);white-space:nowrap;}
+.prose strong code{color:var(--accent-2);}
+
+/* ------------------------------------------------------------------ */
+/* CODE BLOCKS                                                         */
+/* ------------------------------------------------------------------ */
+.code{background:var(--code-bg);border-radius:12px;margin:1.5em 0;overflow:hidden;
+  border:1px solid #000;box-shadow:0 12px 30px -18px rgba(0,0,0,.5);}
+.code-bar{display:flex;align-items:center;gap:10px;padding:9px 16px;
+  background:var(--code-bg-2);border-bottom:1px solid var(--code-line);}
+.code-bar .lights{display:flex;gap:6px;}
+.code-bar .lights i{width:10px;height:10px;border-radius:50%;display:block;}
+.code-bar .l1{background:#c5503b;}.code-bar .l2{background:#c89a4a;}.code-bar .l3{background:#6f8f4a;}
+.code-bar .fname{font-family:var(--mono);font-size:11.5px;color:var(--code-dim);
+  letter-spacing:.02em;}
+.code-bar .tag{margin-left:auto;font-family:var(--mono);font-size:10px;
+  letter-spacing:.14em;text-transform:uppercase;padding:2px 9px;border-radius:100px;
+  font-weight:500;}
+.tag.bad{background:rgba(213,107,89,.16);color:#e08b78;border:1px solid rgba(213,107,89,.3);}
+.tag.good{background:rgba(155,176,106,.16);color:#aec47e;border:1px solid rgba(155,176,106,.3);}
+pre{margin:0;padding:16px 18px;overflow-x:auto;font-family:var(--mono);
+  font-size:13px;line-height:1.62;color:var(--code-fg);
+  -webkit-font-smoothing:auto;}
+pre::-webkit-scrollbar{height:9px;}
+pre::-webkit-scrollbar-thumb{background:#4a4234;border-radius:6px;}
+pre .c{color:var(--code-com);font-style:italic;}
+pre .k{color:var(--code-key);}
+pre .s{color:var(--code-str);}
+pre .n{color:var(--code-num);}
+pre .f{color:var(--code-fn);}
+pre .p{color:var(--code-dim);}
+pre .x{color:var(--code-bad);}
+pre .g{color:var(--code-good);}
+pre .hl{background:rgba(182,69,44,.16);display:inline-block;width:100%;
+  margin:0 -18px;padding:0 18px;}
+
+/* good/bad split */
+.split{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:1.5em 0;}
+@media(max-width:680px){.split{grid-template-columns:1fr;}}
+.split .code{margin:0;}
+
+/* ------------------------------------------------------------------ */
+/* CALLOUTS                                                            */
+/* ------------------------------------------------------------------ */
+.call{margin:1.6em 0;padding:18px 22px 18px 20px;border-radius:10px;
+  background:var(--paper-2);border:1px solid var(--rule);position:relative;
+  border-left:3px solid var(--ink-faint);}
+.call .lbl{font-family:var(--mono);font-size:10.5px;letter-spacing:.18em;
+  text-transform:uppercase;font-weight:600;display:flex;align-items:center;
+  gap:8px;margin-bottom:8px;}
+.call p{margin:0 0 .6em;}.call p:last-child{margin-bottom:0;}
+.call.pitfall{border-left-color:var(--c-sec);background:#f6ece9;}
+.call.pitfall .lbl{color:var(--c-sec);}
+.call.tip{border-left-color:var(--c-found);background:#e9f1ef;}
+.call.tip .lbl{color:var(--c-found);}
+.call.spec{border-left-color:var(--c-sem);background:#e9f0f7;}
+.call.spec .lbl{color:var(--c-sem);}
+.call.key{border-left-color:var(--accent);background:var(--accent-tint);}
+.call.key .lbl{color:var(--accent-2);}
+.call .ico{font-family:var(--mono);font-style:normal;}
+
+/* stat strip */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+  gap:1px;background:var(--rule);border:1px solid var(--rule);border-radius:10px;
+  overflow:hidden;margin:1.7em 0;}
+.stat{background:var(--paper);padding:18px 18px 16px;}
+.stat .big{font-family:var(--display);font-weight:600;font-size:2.1rem;
+  line-height:1;color:var(--accent);letter-spacing:-.02em;}
+.stat .cap{font-size:12.5px;color:var(--ink-soft);line-height:1.4;margin-top:7px;}
+.stat .src{font-family:var(--mono);font-size:9.5px;color:var(--ink-faint);
+  letter-spacing:.08em;text-transform:uppercase;margin-top:6px;}
+
+/* ------------------------------------------------------------------ */
+/* FIGURES / SVG                                                       */
+/* ------------------------------------------------------------------ */
+figure{margin:1.9em 0;}
+figure.fig{background:var(--paper-2);border:1px solid var(--rule);
+  border-radius:12px;padding:26px 24px 16px;}
+figure.fig svg{display:block;width:100%;height:auto;}
+figcaption{font-family:var(--mono);font-size:11.5px;color:var(--ink-soft);
+  line-height:1.55;margin-top:14px;padding-top:12px;border-top:1px dashed var(--rule);}
+figcaption b{color:var(--ink-2);font-weight:600;}
+
+/* ------------------------------------------------------------------ */
+/* INTERACTIVE WIDGETS                                                 */
+/* ------------------------------------------------------------------ */
+.widget{border:1px solid var(--rule);border-radius:14px;margin:1.9em 0;
+  background:var(--paper-2);overflow:hidden;}
+.widget-head{padding:16px 22px;border-bottom:1px solid var(--rule);
+  background:var(--paper);display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+.widget-head .wtag{font-family:var(--mono);font-size:10px;letter-spacing:.16em;
+  text-transform:uppercase;font-weight:600;color:#fff;background:var(--accent);
+  padding:3px 10px;border-radius:100px;}
+.widget-head h4{margin:0;font-family:var(--display);font-weight:600;font-size:1.18rem;
+  color:var(--ink);letter-spacing:-.01em;text-transform:none;}
+.widget-body{padding:22px;}
+.q-prompt{font-weight:600;color:var(--ink);margin:0 0 14px;font-size:1.02rem;}
+.opts{display:flex;flex-wrap:wrap;gap:10px;}
+.opt{font-family:var(--body);font-size:14.5px;font-weight:500;cursor:pointer;
+  border:1px solid var(--rule);background:var(--paper);color:var(--ink-2);
+  padding:10px 18px;border-radius:9px;transition:all .15s;line-height:1.3;}
+.opt:hover{border-color:var(--accent);color:var(--accent-2);
+  transform:translateY(-1px);box-shadow:0 5px 14px -8px rgba(182,69,44,.5);}
+.opt:active{transform:translateY(0);}
+.verdict{margin-top:18px;padding:18px 20px;border-radius:10px;
+  background:var(--ink);color:var(--paper);display:none;animation:rise .35s ease;}
+.verdict.show{display:block;}
+.verdict .vk{font-family:var(--mono);font-size:10.5px;letter-spacing:.18em;
+  text-transform:uppercase;color:var(--accent);margin-bottom:8px;font-weight:600;}
+.verdict h5{margin:0 0 8px;font-family:var(--display);font-weight:600;
+  font-size:1.3rem;color:var(--paper);letter-spacing:-.01em;}
+.verdict p{margin:0 0 .7em;color:#d8d0bf;font-size:14.5px;line-height:1.6;}
+.verdict p:last-child{margin-bottom:0;}
+.verdict code{background:#36312700;color:var(--code-key);border-color:#4a4234;
+  background:rgba(255,255,255,.06);}
+.verdict .again{margin-top:14px;font-family:var(--mono);font-size:11px;
+  letter-spacing:.12em;text-transform:uppercase;background:none;border:1px solid #4a4234;
+  color:var(--code-dim);padding:7px 14px;border-radius:7px;cursor:pointer;}
+.verdict .again:hover{border-color:var(--accent);color:var(--accent);}
+.crumb{font-family:var(--mono);font-size:11px;color:var(--ink-faint);
+  margin-bottom:14px;min-height:16px;letter-spacing:.04em;}
+.crumb b{color:var(--accent-2);}
+@keyframes rise{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+
+/* checklists */
+.checklist{border:1px solid var(--rule);border-radius:14px;margin:1.9em 0;
+  background:var(--paper);overflow:hidden;}
+.cl-head{padding:16px 22px;border-bottom:1px solid var(--rule);background:var(--paper-2);
+  display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
+.cl-head h4{margin:0;font-family:var(--display);font-weight:600;font-size:1.2rem;
+  color:var(--ink);text-transform:none;letter-spacing:-.01em;}
+.cl-prog{margin-left:auto;display:flex;align-items:center;gap:10px;}
+.cl-prog .bar{width:120px;height:7px;border-radius:100px;background:var(--paper-3);overflow:hidden;}
+.cl-prog .fill{height:100%;width:0%;background:linear-gradient(90deg,var(--c-scale),#7a9c3e);
+  transition:width .3s;}
+.cl-prog .pct{font-family:var(--mono);font-size:12px;color:var(--ink-soft);font-weight:500;min-width:38px;}
+.cl-body{padding:8px 0;}
+.check{display:flex;gap:14px;align-items:flex-start;padding:13px 22px;cursor:pointer;
+  border-bottom:1px solid var(--rule-soft);transition:background .12s;}
+.check:last-child{border-bottom:none;}
+.check:hover{background:var(--paper-2);}
+.check .box{flex:none;width:21px;height:21px;border-radius:6px;border:2px solid var(--rule);
+  margin-top:1px;display:grid;place-items:center;transition:all .15s;background:var(--paper);}
+.check .box svg{width:12px;height:12px;opacity:0;transform:scale(.4);transition:all .15s;}
+.check.done .box{background:var(--c-scale);border-color:var(--c-scale);}
+.check.done .box svg{opacity:1;transform:none;}
+.check .ctext{font-size:15px;line-height:1.5;color:var(--ink-2);}
+.check.done .ctext{color:var(--ink-faint);}
+.check .ctext b{color:var(--ink);font-weight:600;}
+.check.done .ctext b{color:var(--ink-soft);}
+.check .ctext code{font-size:.82em;}
+
+/* mini "rule of thumb" inline tag */
+.thumb{display:inline-block;font-family:var(--mono);font-size:11px;font-weight:500;
+  letter-spacing:.04em;background:var(--ink);color:var(--paper);padding:2px 9px;
+  border-radius:5px;white-space:nowrap;}
+
+/* tables */
+.tbl-wrap{overflow-x:auto;margin:1.7em 0;border:1px solid var(--rule);border-radius:10px;}
+table{border-collapse:collapse;width:100%;font-size:14px;min-width:520px;}
+th,td{text-align:left;padding:12px 16px;border-bottom:1px solid var(--rule-soft);
+  vertical-align:top;line-height:1.45;}
+thead th{background:var(--paper-2);font-family:var(--mono);font-size:10.5px;
+  letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft);font-weight:600;
+  border-bottom:1.5px solid var(--rule);}
+tbody tr:last-child td{border-bottom:none;}
+tbody tr:hover{background:var(--paper-2);}
+td code{font-size:.82em;white-space:normal;}
+td b{font-weight:600;color:var(--ink);}
+
+/* footer / colophon */
+.colophon{max-width:var(--maxw);margin:0 auto;padding:50px 32px 80px;
+  border-top:2px solid var(--ink);}
+.colophon .cwrap{display:grid;grid-template-columns:1.3fr 1fr;gap:40px;}
+@media(max-width:760px){.colophon .cwrap{grid-template-columns:1fr;gap:28px;}}
+.colophon h3{font-family:var(--display);font-weight:600;font-size:1.4rem;margin:0 0 14px;}
+.colophon p{font-size:14px;color:var(--ink-soft);margin:0 0 1em;line-height:1.6;}
+.colophon .srcs{font-family:var(--mono);font-size:11.5px;line-height:1.95;color:var(--ink-soft);}
+.colophon .srcs a{color:var(--ink-2);text-decoration:none;border-bottom:1px solid var(--rule);}
+.colophon .srcs a:hover{color:var(--accent-2);border-color:var(--accent);}
+.colophon .sig{font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--ink-faint);margin-top:24px;}
+
+::selection{background:var(--accent);color:var(--paper);}
+
+/* print */
+@media print{
+  body{background:#fff;font-size:11pt;}
+  #progress,.toc,.opt,.verdict .again,.cl-prog{display:none!important;}
+  .shell{display:block;padding:0;}
+  .code,figure.fig,.widget,.checklist,.call,.stats{break-inside:avoid;}
+  .verdict{display:block!important;background:#f0f0f0;color:#000;}
+  .verdict h5,.verdict p,.verdict .vk{color:#000;}
+  a{color:#000;}
+}
+</style>
+</head>
+<body>
+<div id="progress"></div>
+
+<!-- ===================== MASTHEAD ===================== -->
+<header class="masthead">
+  <div class="mast-kicker">
+    <span>The Infrastructure Field Manual</span><span class="dot"></span>
+    <span>Server Design Review</span><span class="dot"></span>
+    <span>Rev. 2026.06</span>
+  </div>
+  <h1 class="mast-title">Evaluating<br><em>haus-mcp-internal</em></h1>
+  <div class="mast-rule"></div>
+  <p class="standfirst">A 69-tool analytics MCP server — attribution, causal MMM, experiments, paid media, and KPIs — read through the lens of a single question: <b>can a non-deterministic model reliably find the right tool, call it correctly the first time, and chain it into the next step?</b> This is a structural review: what the surface gets right, where it leaks accuracy, and — for every fix — the low-level reason it moves the needle.</p>
+  <div class="mast-meta">
+    <div class="cell"><span class="k">Subject</span><span class="v">haus-mcp-internal · 69 tools</span></div>
+    <div class="cell"><span class="k">Lens</span><span class="v">LLM ergonomics &amp; reliability</span></div>
+    <div class="cell"><span class="k">Method</span><span class="v">Live schema inspection</span></div>
+    <div class="cell"><span class="k">Read</span><span class="v">~30 min · 9 ch + 3 appx</span></div>
+  </div>
+</header>
+
+<!-- ===================== SHELL ===================== -->
+<div class="shell">
+
+<!-- ---- TABLE OF CONTENTS ---- -->
+<nav class="toc">
+  <!-- mobile -->
+  <div class="toc-mobile">
+    <details>
+      <summary>Contents</summary>
+      <ol id="toc-list-m"></ol>
+    </details>
+  </div>
+  <!-- desktop -->
+  <div class="toc-desktop">
+    <p class="toc-head">Contents</p>
+    <ol id="toc-list"></ol>
+    <div class="toc-foot">
+      One concept, one name.<br>
+      Constrain in the schema,<br>
+      not the prose.<br>
+      <span style="color:var(--accent-2)">— and defer the long tail.</span>
+    </div>
+  </div>
+</nav>
+
+<!-- ---- MAIN COLUMN ---- -->
+<main id="main">
+
+<!-- ============ CH 1 ============ -->
+<section class="chapter" id="ch1">
+  <span class="ch-tax" style="background:var(--c-found)">◆ The surface</span>
+  <div class="ch-num">Chapter 01</div>
+  <h2 class="ch-title">The surface at a glance</h2>
+  <p class="ch-lede">Before judging anything, map it. <code>haus-mcp-internal</code> exposes <strong>69 tools</strong> spanning ten loosely-bounded families. The shape of that surface — what's big, what's duplicated, what depends on what — already predicts where a model will struggle.</p>
+  <div class="prose">
+    <p>This review was written against the <em>live</em> tool definitions, not a spec document — every schema, parameter, enum, and description quoted here was pulled directly from the running server. The families below are the author's grouping; the codebase itself encodes them only as name prefixes (<code>get_cmmm_*</code>, <code>get_facebook_*</code>, <code>list_*</code>).</p>
+
+    <figure class="fig">
+      <svg viewBox="0 0 760 350" xmlns="http://www.w3.org/2000/svg" font-family="JetBrains Mono, monospace">
+        <text x="0" y="16" font-size="11" letter-spacing="1" fill="var(--ink-soft)">TOOLS PER FAMILY  ·  69 total</text>
+        <!-- rows -->
+        <g font-size="11.5">
+          <!-- 1 Google -->
+          <rect x="208" y="30" width="519" height="20" rx="3" fill="var(--c-sem)"/>
+          <text x="200" y="44" text-anchor="end" fill="var(--ink-2)">Google paid media</text>
+          <text x="735" y="44" fill="var(--ink-2)" font-weight="700">14</text>
+          <!-- 2 cMMM -->
+          <rect x="208" y="59" width="445" height="20" rx="3" fill="var(--c-scale)"/>
+          <text x="200" y="73" text-anchor="end" fill="var(--ink-2)">Causal MMM (cMMM)</text>
+          <text x="661" y="73" fill="var(--ink-2)" font-weight="700">12</text>
+          <!-- 3 Discovery -->
+          <rect x="208" y="88" width="445" height="20" rx="3" fill="var(--c-found)"/>
+          <text x="200" y="102" text-anchor="end" fill="var(--ink-2)">Discovery · list · search</text>
+          <text x="661" y="102" fill="var(--ink-2)" font-weight="700">12</text>
+          <!-- 4 Experiments read -->
+          <rect x="208" y="117" width="334" height="20" rx="3" fill="var(--c-tool)"/>
+          <text x="200" y="131" text-anchor="end" fill="var(--ink-2)">Experiment read &amp; analyse</text>
+          <text x="550" y="131" fill="var(--ink-2)" font-weight="700">9</text>
+          <!-- 5 Meta -->
+          <rect x="208" y="146" width="260" height="20" rx="3" fill="var(--c-sem)" opacity="0.72"/>
+          <text x="200" y="160" text-anchor="end" fill="var(--ink-2)">Meta / Facebook paid media</text>
+          <text x="476" y="160" fill="var(--ink-2)" font-weight="700">7</text>
+          <!-- 6 Attribution -->
+          <rect x="208" y="175" width="186" height="20" rx="3" fill="var(--c-schema)"/>
+          <text x="200" y="189" text-anchor="end" fill="var(--ink-2)">Attribution</text>
+          <text x="402" y="189" fill="var(--ink-2)" font-weight="700">5</text>
+          <!-- 7 Power -->
+          <rect x="208" y="204" width="111" height="20" rx="3" fill="var(--c-ops)"/>
+          <text x="200" y="218" text-anchor="end" fill="var(--ink-2)">Experiment design &amp; power</text>
+          <text x="327" y="218" fill="var(--ink-2)" font-weight="700">3</text>
+          <!-- 8 cross-platform -->
+          <rect x="208" y="233" width="111" height="20" rx="3" fill="var(--c-schema)" opacity="0.7"/>
+          <text x="200" y="247" text-anchor="end" fill="var(--ink-2)">Cross-platform &amp; campaign</text>
+          <text x="327" y="247" fill="var(--ink-2)" font-weight="700">3</text>
+          <!-- 9 channel -->
+          <rect x="208" y="262" width="74" height="20" rx="3" fill="var(--c-sec)"/>
+          <text x="200" y="276" text-anchor="end" fill="var(--ink-2)">Channel groups</text>
+          <text x="290" y="276" fill="var(--ink-2)" font-weight="700">2</text>
+          <!-- 10 fp kpi -->
+          <rect x="208" y="291" width="74" height="20" rx="3" fill="var(--c-found)" opacity="0.7"/>
+          <text x="200" y="305" text-anchor="end" fill="var(--ink-2)">First-party KPIs &amp; volume</text>
+          <text x="290" y="305" fill="var(--ink-2)" font-weight="700">2</text>
+        </g>
+        <line x1="208" y1="324" x2="727" y2="324" stroke="var(--rule)"/>
+        <text x="208" y="340" font-size="9.5" fill="var(--ink-faint)">paid-media getters alone = 21 tools (≈30% of the surface)</text>
+      </svg>
+      <figcaption><b>Three families carry the weight.</b> Google (14), cMMM (12), and discovery (12) are over half the surface. The 21 paid-media getters are mostly granularity- and table-variants of one another — the single largest consolidation opportunity. The discovery family is unusually large because almost every data tool needs an opaque ID fetched from a <code>list_*</code> call first.</figcaption>
+    </figure>
+
+    <div class="stats">
+      <div class="stat"><div class="big">69</div><div class="cap">tools loaded on every turn unless deferred</div><div class="src">live server inventory</div></div>
+      <div class="stat"><div class="big">21</div><div class="cap">paid-media getters, largely <b>granularity variants</b></div><div class="src">Google 14 + Meta 7</div></div>
+      <div class="stat"><div class="big">12</div><div class="cap"><code>list_*</code>/<code>search_*</code> tools that exist mainly to <b>resolve opaque IDs</b></div><div class="src">discovery family</div></div>
+    </div>
+
+    <h3>The one parameter every tool shares</h3>
+    <p>All 69 tools require <code>org_name_as_key</code>. There is no <code>set_organization</code>, no session-scoped default — every call, in every chain, re-states the organization. Hold that thought; it's the subject of Chapter 6.</p>
+
+    <h3>What this review optimises for</h3>
+    <p>One yardstick, applied throughout: <strong>can a non-deterministic reader (a) find the right tool among 69, (b) populate its schema correctly on the first try, (c) get back signal it can use, and (d) feed that output into the next tool in the chain?</strong> Every issue below is a place where one of those four breaks, and every fix is followed by the mechanical reason it helps — because "be consistent" is advice, but "a shared parameter name lets induction heads copy the value from the previous tool's output instead of re-deriving it" is an explanation you can design against.</p>
+
+    <div class="call key">
+      <div class="lbl"><span class="ico">★</span> The headline</div>
+      <p>This is a <strong>capable, actively-maintained server with real sophistication</strong> — graceful payload truncation, posterior-probability guidance, per-tool permission scopes. Its weaknesses are not crude; they are the subtle, compounding kind: <strong>identity concepts that drift in name and type across families, constraints written in prose the schema doesn't enforce, and a tool count that dilutes selection.</strong> None is fatal alone. Together they tax every multi-step task.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CH 2 ============ -->
+<section class="chapter" id="ch2">
+  <span class="ch-tax" style="background:var(--c-scale)">✓ Strengths</span>
+  <div class="ch-num">Chapter 02</div>
+  <h2 class="ch-title">What the server already gets right</h2>
+  <p class="ch-lede">Credit before critique — and these aren't throwaway compliments. Several patterns here are <strong>more advanced than most production MCP servers ever reach</strong>, and the fixes in later chapters are mostly about propagating these good patterns to the families that lack them.</p>
+  <div class="prose">
+
+    <h3>1 · The paid-media families are internally coherent</h3>
+    <p>Every Facebook and Google getter speaks the same dialect: <code>date_from</code> / <code>date_to</code> for the window, <code>campaign_name</code> for a partial-match filter, <code>limit</code> / <code>offset</code> for pagination, and a <code>group_by</code> enum for aggregation. A model that learns one of these tools has effectively learned all twenty-one. This is exactly the transfer you want — and it's the proof that the team <em>can</em> do consistency; it just hasn't been enforced <em>across</em> family boundaries (Chapter 3).</p>
+    <div class="code">
+      <div class="code-bar"><span class="lights"><i class="l1"></i><i class="l2"></i><i class="l3"></i></span><span class="fname">paid_media_shared_shape.txt</span><span class="tag good">consistent within family</span></div>
+<pre><span class="c">// The same 5 parameters, tool after tool:</span>
+date_from   <span class="c">// "YYYY-MM-DD"</span>
+date_to     <span class="c">// "YYYY-MM-DD"</span>
+campaign_name?   <span class="c">// partial match</span>
+limit?      <span class="c">// default 100, max 1000  (documented!)</span>
+offset?     <span class="c">// default 0</span>
+group_by?   <span class="k">enum</span>[<span class="s">"daily"</span>,<span class="s">"daily_campaign"</span>,<span class="s">"ad"</span>]  <span class="c">// real schema enum</span></pre>
+    </div>
+
+    <h3>2 · Token economy is taken seriously</h3>
+    <p>This is rare and worth applauding. Several cMMM tools accept <code>chart_data_granularity: "weekly" | "summary_only"</code> to let the caller drop heavy per-channel arrays — and, crucially, the server <strong>auto-falls-back</strong> to <code>summary_only</code> when a projected payload would exceed the harness limit, appending <code>forced_summary_only_due_to_payload_size</code> to a <code>warnings</code> array. Add <code>compact</code> (drop all-zero rows), <code>top_k</code> (return only the N largest), and <code>which_read</code> (fetch one readout instead of three), and you have a server that actively manages the model's context budget. Most servers return everything and hope.</p>
+    <div class="call tip">
+      <div class="lbl"><span class="ico">⟐</span> Why this matters mechanically</div>
+      <p>A tool result is appended verbatim to the context and then attended over on every subsequent step. An unbounded 4,000-row dump doesn't just cost tokens once; it dilutes every future attention distribution and pushes the conversation toward the context ceiling. By truncating <em>at the server</em> — and signalling that it did via a warning the model can act on — the design keeps the signal-to-token ratio high without the model having to know in advance how big a response will be.</p>
+    </div>
+
+    <h3>3 · Descriptions teach interpretation, not just mechanics</h3>
+    <p>The experiment tools embed genuine analytical guidance: read <code>reporting_category</code> and <code>kpi_name</code> together before making any unit-bearing claim; lead with <code>prob_lift_gt_zero</code> rather than collapsing to "the CI crosses zero, therefore inconclusive"; consult <code>cross_cell_note</code> when cell-vs-cell entries appear. This is behavioural steering that measurably improves how the model <em>reasons about</em> the data after it arrives — not merely how it calls the tool. (Chapter 8 argues this content is correct but lives in the wrong place.)</p>
+
+    <h3>4 · Least-privilege scopes and discovery bootstrapping</h3>
+    <p>Two more mature choices. First, tools carry explicit permission scopes (<code>mcp_internal_cmmm_past_performance:read</code>) rather than one blanket grant — the blast radius of any single tool is bounded. Second, the surface is honest about its opaque IDs: it ships <code>list_*</code> tools (<code>list_cmmm_contexts</code>, <code>list_design_playground_configs</code>, <code>list_regions</code>) whose entire job is to hand the model the valid IDs it can't know a priori. That is the correct pattern for a server fronting real datasets — the problem (Chapter 3) is only that the IDs they hand back are named inconsistently by the tools that consume them.</p>
+
+    <h3>5 · Resilience is designed in</h3>
+    <p>When a Fivetran table may be unsynced, the ad-level tools document a concrete fallback ("if this returns table-not-found, use <code>get_facebook_adset_performance</code> instead"). The intent — graceful degradation rather than a dead end — is exactly right. Chapter 7 argues only that this recovery belongs <em>inside the server</em>, not in a description the model has to remember to act on.</p>
+
+    <div class="call key">
+      <div class="lbl"><span class="ico">★</span> The through-line</div>
+      <p>The raw materials of an excellent MCP server are <strong>already here</strong>: a proven consistent dialect (paid media), real payload discipline, interpretive guidance, scoped permissions, discovery tools. Almost everything that follows is about <strong>extending these wins to the families that missed them</strong> and <strong>moving guarantees from prose into the schema and the server</strong>, where they bind deterministically instead of probabilistically.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CH 3 ============ -->
+<section class="chapter" id="ch3">
+  <span class="ch-tax" style="background:var(--c-schema)">▲ Schema · Identity</span>
+  <div class="ch-num">Chapter 03</div>
+  <h2 class="ch-title">The inconsistency tax</h2>
+  <p class="ch-lede">This is the most consequential finding in the review. Across the surface, the <em>same underlying concept</em> — a KPI, a readout, a date window, a region — travels under different parameter names, and sometimes different <em>types</em>, depending on which family wrote the tool. The server already documents that this causes hard call failures.</p>
+  <div class="prose">
+    <p>Each family is internally consistent (Chapter 2). The damage happens at the seams between families, where a model that just succeeded with one tool carries its learned vocabulary into the next and gets rejected. Here is the drift, concept by concept:</p>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>One concept…</th><th>…travelling under these names</th><th>The trap</th></tr></thead>
+        <tbody>
+          <tr><td><b>KPI identity</b></td><td><code>kpi_id</code> · <code>kpi_name_as_key</code> · <code>kpi_name</code> · <code>kpi_key</code></td><td>Four names. And <code>kpi_id</code> is a <b>string</b> in cMMM tools but an <b>integer</b> in power-analysis tools.</td></tr>
+          <tr><td><b>Which readout</b></td><td><code>which_read</code> · <code>readout_type</code> · <code>revision_type</code></td><td>Three names for {midpoint, final, ptw}. One is a real enum; two are free strings.</td></tr>
+          <tr><td><b>Date window</b></td><td><code>date_from</code>/<code>date_to</code> · <code>start_date</code>/<code>end_date</code> · <code>curr_*</code>/<code>comp_*</code></td><td>Three vocabularies: paid-media, cMMM/attribution-trends, and comparison-period attribution.</td></tr>
+          <tr><td><b>Region identity</b></td><td><code>region_id</code> · <code>region_geo_fence_id</code> · <code>region</code></td><td>Numeric id, UUID string, and bare code — each discovered by a <em>different</em> <code>list_*</code> tool.</td></tr>
+          <tr><td><b>"How many"</b></td><td><code>limit</code> · <code>max_results</code></td><td><code>search_experiments_tool</code> says <code>limit</code>; <code>search_similar_experiments</code> says <code>max_results</code>.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>This isn't hypothetical. The cMMM tool's own description carries a warning that only makes sense if models get this wrong constantly:</p>
+    <div class="code">
+      <div class="code-bar"><span class="lights"><i class="l1"></i><i class="l2"></i><i class="l3"></i></span><span class="fname">from get_cmmm_past_performance description</span><span class="tag bad">documented footgun</span></div>
+<pre><span class="c">kpi_id: KPI identifier from list_cmmm_contexts (the dict key,</span>
+<span class="c">    e.g. "164"). Do NOT pass name_as_key (e.g.</span>
+<span class="c">    "new_gross_revenue"); Harbor will reject it with</span>
+<span class="c">    reason="unknown_kpi_id".</span></pre>
+    </div>
+    <p>The model is being warned <em>not</em> to do the thing that <em>every other KPI-aware tool trained it to do</em> — pass a <code>name_as_key</code>. The inconsistency manufactured the footgun; the warning is a patch over it.</p>
+
+    <div class="call key">
+      <div class="lbl"><span class="ico">★</span> Why it costs you — the mechanism</div>
+      <p>A transformer doesn't "look up" your API; it <strong>predicts the next token by analogy to patterns it has seen</strong>, including patterns earlier in this very conversation. Two mechanisms are at work:</p>
+      <p><strong>(1) In-context learning.</strong> When the model sees <code>kpi_name_as_key: "new_orders"</code> succeed on tool A, it forms a transient association — <em>this concept is addressed by a human-readable key</em> — and pretraining reinforces that fields literally named <code>*_name</code> or <code>*_key</code> take strings. That prior <em>transfers</em> to tool B. If B agrees (<code>kpi_key</code>), the transfer is a free win. If B instead wants a numeric <code>kpi_id</code>, the prior actively <em>mis-fires</em>: the model confidently passes the wrong-typed value and the server rejects it.</p>
+      <p><strong>(2) Induction heads.</strong> The mechanism that lets a model chain tools is literally copy-by-pattern: an induction head sees <code>list_cmmm_contexts</code> return <code>{"164": ...}</code> and, at the next call site, copies <code>164</code> into the slot that <em>looks like where it goes</em>. A single shared name (<code>kpi_id</code> in both the discovery output and the consumer input) makes that copy reliable. Five different names for one concept break the visual/positional cue the induction head relies on, so the chain snaps in the model's head — exactly where multi-step analytics tasks live.</p>
+      <p>Every additional name for one concept multiplies the hypotheses the model must disambiguate <em>at call time, under load</em>, and defeats the very circuit that would otherwise carry an ID from one tool's output into the next tool's input.</p>
+    </div>
+
+    <h3>The fix: one canonical vocabulary, enforced</h3>
+    <p>Pick one name and one type per concept, server-wide, and make every tool speak it. The drift collapses into a single learnable mapping:</p>
+    <div class="split">
+      <div class="code">
+        <div class="code-bar"><span class="lights"><i class="l1"></i><i class="l2"></i><i class="l3"></i></span><span class="fname">today.txt</span><span class="tag bad">five dialects</span></div>
+<pre>kpi_id        <span class="c">// str here…</span>
+kpi_id        <span class="c">// int there</span>
+kpi_name_as_key
+kpi_name
+kpi_key
+which_read / readout_type / revision_type
+date_from / start_date / curr_start
+limit / max_results
+region_id / region_geo_fence_id / region</pre>
+      </div>
+      <div class="code">
+        <div class="code-bar"><span class="lights"><i class="l1"></i><i class="l2"></i><i class="l3"></i></span><span class="fname">canonical.txt</span><span class="tag good">one name · one type</span></div>
+<pre>kpi_id        <span class="c">// string, everywhere</span>
+readout       <span class="k">enum</span>[<span class="s">midpoint</span>,<span class="s">final</span>,<span class="s">ptw</span>]
+start_date / end_date    <span class="c">// everywhere</span>
+comparison_start / comparison_end
+                <span class="c">// only when a comparison exists</span>
+max_results   <span class="c">// int, everywhere</span>
+region_id     <span class="c">// + region_kind if truly distinct</span></pre>
+      </div>
+    </div>
+
+    <h3>How to ship it without breaking in-flight agents</h3>
+    <p>You can't rename a parameter out from under a running conversation, so do it additively. <strong>Accept the new canonical name and the legacy name simultaneously</strong>, normalise to canonical inside the handler, and mark the legacy alias deprecated in the description. Remove the alias only once usage telemetry shows it has drained.</p>
+    <div class="code">
+      <div class="code-bar"><span class="lights"><i class="l1"></i><i class="l2"></i><i class="l3"></i></span><span class="fname">alias_and_normalize.py</span><span class="tag good">additive migration</span></div>
+<pre><span class="k">def</span> <span class="f">resolve_kpi</span>(args):
+    <span class="c"># accept canonical OR any legacy alias, coerce to str</span>
+    raw = (args.get(<span class="s">"kpi_id"</span>)
+           <span class="k">or</span> args.get(<span class="s">"kpi_key"</span>)
+           <span class="k">or</span> args.get(<span class="s">"kpi_name_as_key"</span>))
+    <span class="k">if</span> raw <span class="k">is</span> <span class="k">None</span>:
+        <span class="k">raise</span> <span class="f">ToolError</span>(<span class="s">"kpi_id is required; "</span>
+            <span class="s">"call list_cmmm_contexts to get valid ids"</span>)
+    <span class="k">return</span> <span class="f">str</span>(raw)   <span class="c"># one type at the boundary</span></pre>
+    </div>
+    <div class="call tip">
+      <div class="lbl"><span class="ico">⟐</span> Why the alias works mechanically</div>
+      <p>The model's mis-fire (Chapter mechanism above) is that it passes <code>kpi_key</code> or a name when the schema wanted <code>kpi_id</code>. An alias <strong>makes the model's most probable wrong guess correct</strong> — you meet the prior instead of fighting it — while normalisation guarantees the handler sees one type. Over the deprecation window you then retrain the in-context prior toward the canonical name by making it the one the schema advertises and the descriptions use, so new conversations converge on it without any hard failures along the way.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CH 4 ============ -->
+<section class="chapter" id="ch4">
+  <span class="ch-tax" style="background:var(--c-schema)">▲ Schema · Constraints</span>
+  <div class="ch-num">Chapter 04</div>
+  <h2 class="ch-title">Enums that aren't enums</h2>
+  <p class="ch-lede">The server already knows how to express a closed value set in the schema — <code>group_by</code>, <code>breakdown</code>, and <code>fallback_method</code> are proper JSON Schema enums. But a long list of equally-closed parameters are declared as bare <code>string</code> (or <code>integer</code>) with the legal values buried in the prose. The model is left to guess, unmasked.</p>
+  <div class="prose">
+    <p>A representative sample of values that are closed sets in reality but free types in the schema:</p>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Parameter</th><th>Declared as</th><th>Actually constrained to (per prose)</th></tr></thead>
+        <tbody>
+          <tr><td><code>attribution_model</code></td><td><code>string</code></td><td>last_click · first_click · linear</td></tr>
+          <tr><td><code>accounting_mode</code></td><td><code>string</code></td><td>cash · accrual</td></tr>
+          <tr><td><code>metric</code> / <code>granularity</code></td><td><code>string</code></td><td>spend·revenue·orders / daily·weekly·monthly</td></tr>
+          <tr><td><code>lookback_window</code></td><td><code>integer</code></td><td>1 · 7 · 14 · 28 (only)</td></tr>
+          <tr><td><code>match_type</code></td><td><code>string</code></td><td>BROAD · EXACT · PHRASE</td></tr>
+          <tr><td><code>ad_network_type</code> / <code>device</code></td><td><code>string</code></td><td>SEARCH·CONTENT·YOUTUBE_WATCH / MOBILE·DESKTOP·…</td></tr>
+          <tr><td><code>cardinality</code></td><td><code>string</code></td><td>"two" · "three"</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="split">
+      <div class="code">
+        <div class="code-bar"><span class="lights"><i class="l1"></i><i class="l2"></i><i class="l3"></i></span><span class="fname">free_string.ts</span><span class="tag bad">constraint lives in prose</span></div>
+<pre>attribution_model: { <span class="k">type</span>: <span class="s">"string"</span> }
+<span class="c">// "One of 'last_click','first_click','linear'"</span>
+<span class="c">// → model may emit "Last Click", "lastclick",</span>
+<span class="c">//   "last-click"… all rejected by the backend</span></pre>
+      </div>
+      <div class="code">
+        <div class="code-bar"><span class="lights"><i class="l1"></i><i class="l2"></i><i class="l3"></i></span><span class="fname">enum.ts</span><span class="tag good">constraint in the schema</span></div>
+<pre>attribution_model: {
+  <span class="k">type</span>: <span class="s">"string"</span>,
+  <span class="hl">enum</span>: [<span class="s">"last_click"</span>,<span class="s">"first_click"</span>,<span class="s">"linear"</span>],
+  <span class="k">default</span>: <span class="s">"last_click"</span>
+}
+lookback_window: { <span class="k">type</span>:<span class="s">"integer"</span>, <span class="hl">enum</span>:[1,7,14,28] }</pre>
+      </div>
+    </div>
+
+    <div class="call key">
+      <div class="lbl"><span class="ico">★</span> Why the enum wins — the mechanism</div>
+      <p>Two distinct effects, both real:</p>
+      <p><strong>(1) Constrained decoding.</strong> Most modern tool-calling stacks generate arguments under <em>grammar-constrained</em> or <em>schema-constrained</em> sampling. When a field declares <code>enum: [...]</code>, the decoder builds a token mask so that at that position <em>only tokens consistent with a legal value can be sampled</em>. An invalid value isn't "unlikely" — it is <strong>literally unreachable</strong>. The error rate for that field collapses to ~0 regardless of how the model "felt" about casing or synonyms. A bare <code>string</code> imposes no mask: the model free-samples and any drift survives.</p>
+      <p><strong>(2) Conditioning strength.</strong> Even where a harness doesn't hard-constrain, an enum is a far stronger signal than prose. The model was trained to <em>fill schemas</em>; the <code>enum</code> array sits <em>in the slot it's filling</em>, adjacent to the type, in the exact structure its tool-use training distribution rewards. A constraint written in a sentence three lines into a docstring must instead be (a) attended to and (b) correctly reproduced — two extra failure points. The enum moves the legal set from "something to recall" to "the shape of the hole."</p>
+      <p>The numeric case is the same story: <code>lookback_window</code> as a free integer invites <code>30</code> or <code>90</code> (sensible-looking, backend-invalid); <code>enum:[1,7,14,28]</code> makes those unsamplable.</p>
+    </div>
+
+    <h3>Belt and suspenders: normalise at the boundary too</h3>
+    <p>Constrained decoding isn't universal across every client, so pair the enum with cheap server-side normalisation — lower-case, strip punctuation, map known synonyms — before validation. The enum stops most errors structurally; the normaliser catches the rest and turns a hard reject into a silent success.</p>
+    <div class="code">
+      <div class="code-bar"><span class="lights"><i class="l1"></i><i class="l2"></i><i class="l3"></i></span><span class="fname">normalize_enum.py</span><span class="tag good">forgive near-misses</span></div>
+<pre>_ALIASES = {<span class="s">"lastclick"</span>:<span class="s">"last_click"</span>, <span class="s">"last-click"</span>:<span class="s">"last_click"</span>}
+<span class="k">def</span> <span class="f">norm_model</span>(v: str) -> str:
+    k = v.strip().lower().replace(<span class="s">" "</span>,<span class="s">"_"</span>)
+    k = _ALIASES.get(k, k)
+    <span class="k">if</span> k <span class="k">not in</span> {<span class="s">"last_click"</span>,<span class="s">"first_click"</span>,<span class="s">"linear"</span>}:
+        <span class="k">raise</span> <span class="f">ToolError</span>(<span class="s">f"attribution_model must be one of "</span>
+            <span class="s">f"last_click/first_click/linear, got {v!r}"</span>)
+    <span class="k">return</span> k</pre>
+    </div>
+    <p>Note the error message also <em>teaches the legal set</em> — which is the subject of Chapter 7. An enum that rejects silently with <code>"validation error"</code> wastes the round-trip; one that names the alternatives lets the model self-correct in a single retry.</p>
+
+    <div class="call pitfall">
+      <div class="lbl"><span class="ico">⚠</span> The consistency-of-consistency trap</div>
+      <p>The danger here isn't that enums are unknown to the codebase — it's that they're applied to <em>some</em> fields and not others, with no obvious rule. A model (and a human contributor) can't form a reliable expectation when <code>group_by</code> is enforced but <code>attribution_model</code> isn't. Adopt a flat rule — <strong>every closed value set is a schema enum, no exceptions</strong> — so the pattern itself becomes learnable.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CH 5 ============ -->
+<section class="chapter" id="ch5">
+  <span class="ch-tax" style="background:var(--c-scale)">✦ Scaling</span>
+  <div class="ch-num">Chapter 05</div>
+  <h2 class="ch-title">Sixty-nine tools, competing for attention</h2>
+  <p class="ch-lede">A 69-tool surface pays two taxes: every definition sits in context on every turn, and — more insidiously — dozens of near-identical getters blur together at selection time. Twenty-one paid-media tools that differ mostly by table or granularity are twenty-one descriptions the model must tell apart.</p>
+  <div class="prose">
+    <p>For calibration against published figures: Anthropic has reported that on the order of <strong>58 connected tools consume roughly 55K tokens of definitions</strong>, a single large connector ~17K, and one internal agent carried 134K tokens of tool definitions before optimisation. A 69-tool server with the verbose, methodology-laden descriptions seen here is squarely in that territory.</p>
+
+    <h3>Tax one: definitions in the prefix</h3>
+    <p>Tool definitions live in the context prefix and are attended over on every step. Self-attention is roughly quadratic in sequence length, so a large, always-resident tool block inflates latency and consumes the budget the actual task needs. It also pins the KV cache: a definition block that changes shape forces recomputation.</p>
+
+    <h3>Tax two: the selection-margin collapse</h3>
+    <p>This is the subtler and more damaging one for <em>this</em> server. Picking a tool is a classification over the candidate set. The model scores each tool against the request; the right one wins if its score sits clearly above its neighbours. But <code>get_facebook_ad_performance</code>, <code>get_facebook_adset_performance</code>, <code>get_facebook_adset_country_performance</code>, <code>get_facebook_adset_summary</code>… have <strong>highly similar names and descriptions</strong> — their embeddings are near-collinear. The logit margin between "the right one" and "a plausible sibling" is thin, so selection errors rise precisely where the surface is densest.</p>
+
+    <div class="stats">
+      <div class="stat"><div class="big">~85%</div><div class="cap">definition-token cut Anthropic reports from <b>deferring</b> a large surface (≈77K→8.7K)</div><div class="src">advanced tool use</div></div>
+      <div class="stat"><div class="big">↑ acc.</div><div class="cap">selection accuracy <b>rose</b> when the long tail was deferred — fewer distractors</div><div class="src">advanced tool use</div></div>
+      <div class="stat"><div class="big">21→?</div><div class="cap">paid-media getters collapsible toward a few <b>level-parameterised</b> tools</div><div class="src">this review</div></div>
+    </div>
+
+    <h3>Lever 1 — consolidate the granularity variants (design, not platform)</h3>
+    <p>Start here, because it shrinks the surface permanently. The tell is already in the schema: <code>get_facebook_adset_performance</code> accepts <code>group_by ∈ {daily, daily_adset, adset, campaign}</code> — it <em>already</em> rolls up to campaign level. So a separate campaign-only tool, or an ad-level tool that's "the same but one level down," is often a <code>group_by</code>/<code>level</code> value in disguise. Where the underlying tables permit, fold siblings into one tool with a <code>level</code> enum and let the server pick the table. Each fold removes a definition <em>and</em> widens the margin between the survivors.</p>
+    <div class="call key">
+      <div class="lbl"><span class="ico">★</span> Why consolidation helps twice — the mechanism</div>
+      <p>Merging near-duplicate getters does two mechanically distinct things. <strong>(a) Fewer tokens:</strong> one definition instead of four cuts the resident prefix directly. <strong>(b) Wider selection margin:</strong> the model is no longer asked to discriminate between four tools whose descriptions are 90% cosine-similar — that ambiguous four-way softmax is replaced by one unambiguous tool plus an <em>intra-tool</em> enum choice (<code>level</code>), which is a constrained-decoding decision (Chapter 4), not a fuzzy semantic one. You convert a hard classification problem into an easy masked-sampling problem.</p>
+    </div>
+
+    <h3>Lever 2 — defer the long tail with a Tool Search Tool</h3>
+    <p>After consolidating, you still have a genuinely large surface. Keep the handful of highest-frequency tools eagerly loaded and mark the rest <code>defer_loading: true</code> behind a search tool, so their full schemas are fetched only when selected. The definitions stop living rent-free in the prefix, and — counter-intuitively — selection accuracy tends to <em>improve</em>, because the model searches a curated shortlist instead of scanning 69 competing descriptions.</p>
+
+    <h3>Lever 3 — push fan-out into code (Programmatic Tool Calling)</h3>
+    <p>Many real Haus questions fan out: "compare this experiment's lift across every org it ran in," "sweep budget×holdout for power." Done conversationally, every intermediate payload lands in context. With <code>allowed_callers: ["code_execution_20250825"]</code>, the model writes sandbox code that calls the tools, joins and filters there, and returns only the distilled answer — the 4,000-row intermediate never enters the conversation.</p>
+
+    <h3>Lever 4 — serve discovery data as Resources, not tool calls</h3>
+    <p>Twelve <code>list_*</code> tools exist mainly to hand back IDs. Every ID lookup is a full tool round-trip plus its result in context. Much of this is reference data (the org's KPI list, region list, cMMM contexts) that fits MCP's <strong>Resources</strong> primitive — addressable by URI, fetched by the host without spending a tool call, and re-usable across turns. The model references <code>kpi://org/contexts</code> instead of paying a call to rediscover it each time.</p>
+
+    <div class="widget" data-picker>
+      <div class="widget-head"><span class="wtag">Decision tree</span><h4>Which lever for <em>this</em> server's bottleneck?</h4></div>
+      <div class="widget-body">
+        <div class="crumb"></div>
+        <div class="step" data-step="start">
+          <p class="q-prompt">What's the symptom you're actually seeing?</p>
+          <div class="opts">
+            <button class="opt" data-verdict="v-consolidate" data-crumb="Picks the wrong getter">Model picks the wrong paid-media getter</button>
+            <button class="opt" data-verdict="v-defer" data-crumb="Context full at start">Context is half-spent before the task starts</button>
+            <button class="opt" data-verdict="v-prog" data-crumb="Multi-org / sweep">Multi-org or budget×holdout sweeps flood context</button>
+            <button class="opt" data-verdict="v-res" data-crumb="Repeated ID lookups">Same list_* IDs fetched over and over</button>
+          </div>
+        </div>
+        <div class="verdict" data-verdict-id="v-consolidate">
+          <div class="vk">→ Consolidate (Lever 1)</div><h5>Fold granularity variants behind a <code>level</code> enum.</h5>
+          <p>Near-duplicate descriptions are what's confusing the classifier. Merging them widens the logit margin and turns the choice into a masked enum decision. Do this first — it's permanent.</p>
+          <button class="again">↺ Start over</button>
+        </div>
+        <div class="verdict" data-verdict-id="v-defer">
+          <div class="vk">→ Defer (Lever 2)</div><h5>Tool Search + <code>defer_loading</code> on the long tail.</h5>
+          <p>Keep the hot few eager; fetch the rest on demand. ~85% less definition overhead and a curated shortlist the model searches instead of 69 competitors.</p>
+          <button class="again">↺ Start over</button>
+        </div>
+        <div class="verdict" data-verdict-id="v-prog">
+          <div class="vk">→ Programmatic calling (Lever 3)</div><h5>Filter fan-out in the sandbox.</h5>
+          <p><code>allowed_callers: ["code_execution_20250825"]</code>. Intermediate rows stay in code; only the distilled result enters context.</p>
+          <button class="again">↺ Start over</button>
+        </div>
+        <div class="verdict" data-verdict-id="v-res">
+          <div class="vk">→ Resources (Lever 4)</div><h5>Expose reference data by URI.</h5>
+          <p>Move the org's KPI / region / context lists to MCP Resources. The host injects them without a tool call, and they're reusable across turns instead of re-fetched.</p>
+          <button class="again">↺ Start over</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="call tip">
+      <div class="lbl"><span class="ico">⟐</span> Order matters</div>
+      <p>Consolidate first (it shrinks and disambiguates), then defer (it hides what remains), then reach for programmatic calling and resources for the workload-specific wins. Deferring <em>before</em> consolidating just hides duplicates you should have deleted.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CH 6 ============ -->
+<section class="chapter" id="ch6">
+  <span class="ch-tax" style="background:var(--c-sem)">■ Semantics · State</span>
+  <div class="ch-num">Chapter 06</div>
+  <h2 class="ch-title">The org you repeat 69 ways, and the customer that usually-but-not-always equals it</h2>
+  <p class="ch-lede">Two state problems compound here. Every tool re-demands <code>org_name_as_key</code> — there is no session default. And several tools also take a separate <code>customer</code> key that is, per the server's own words, "often but not always equal to <code>org_name_as_key</code>." That "usually equal" is exactly the shape of trap a non-deterministic reader falls into.</p>
+  <div class="prose">
+
+    <h3>Problem A — org as mandatory per-call boilerplate</h3>
+    <p>Because <code>org_name_as_key</code> is required on all 69 tools and nothing carries it as state, a five-step analytics task restates the organization five times. Each restatement is independent: a fresh opportunity to omit it, or — worse — to drift to a different org midway when the conversation has discussed several.</p>
+    <div class="call key">
+      <div class="lbl"><span class="ico">★</span> Why repetition erodes reliability — the mechanism</div>
+      <p>Treat each required, model-supplied argument as an independent Bernoulli trial with some small per-call error probability <em>p</em>. Across a chain of <em>n</em> calls, the probability that <em>every</em> org argument is correct is <em>(1−p)<sup>n</sup></em> — it <strong>decays multiplicatively</strong>. At <em>p</em>=2% and <em>n</em>=6 you've already shed ~11% of whole-task success to this one field. Removing an always-required argument from the model's job doesn't shave a little latency; it removes a whole multiplicative factor from the failure expansion. Fewer degrees of freedom per call is the single most reliable way to raise end-to-end success on long chains.</p>
+    </div>
+    <p>MCP has no first-class mutable session-state primitive, so there's no perfectly clean fix — but two pragmatic options both reduce the burden:</p>
+    <ul>
+      <li><strong>A session-default tool.</strong> Add <code>set_active_org(org_name_as_key)</code> that caches the value server-side keyed by the connection/session, and make <code>org_name_as_key</code> on every other tool <em>optional</em>, defaulting to the active org. The model states it once; subsequent calls inherit it. (Document clearly that it's sticky, to avoid the model assuming it reset.)</li>
+      <li><strong>Carry it in discovery.</strong> If you adopt Resources for reference data (Chapter 5), the org is implicit in the resource URI the host already holds, so data tools can resolve a default from context rather than re-prompting the model.</li>
+    </ul>
+    <div class="code">
+      <div class="code-bar"><span class="lights"><i class="l1"></i><i class="l2"></i><i class="l3"></i></span><span class="fname">session_default_org.py</span><span class="tag good">state it once</span></div>
+<pre><span class="c"># org becomes optional everywhere; resolved from session</span>
+<span class="k">def</span> <span class="f">resolve_org</span>(args, session):
+    org = args.get(<span class="s">"org_name_as_key"</span>) <span class="k">or</span> session.active_org
+    <span class="k">if</span> <span class="k">not</span> org:
+        <span class="k">raise</span> <span class="f">ToolError</span>(<span class="s">"no org set — call "</span>
+            <span class="s">"set_active_org first, or pass org_name_as_key"</span>)
+    <span class="k">return</span> org</pre>
+    </div>
+
+    <h3>Problem B — two identity keys that usually coincide</h3>
+    <p>Attribution and cMMM-campaign tools take both <code>org_name_as_key</code> and <code>customer</code> ("Customer dataset key... often but not always equal to <code>org_name_as_key</code>"). This is the most dangerous kind of parameter pair: <strong>two slots whose values are <em>usually identical</em> but <em>occasionally must differ</em>.</strong></p>
+    <div class="call key">
+      <div class="lbl"><span class="ico">★</span> Why "usually equal" is a trap — the mechanism</div>
+      <p>In-context learning generalises from what it sees. If, across most examples and most of this conversation, <code>customer == org_name_as_key</code>, the model learns the rule <em>"these are the same thing"</em> and starts treating <code>customer</code> as a redundant echo of <code>org</code> — it will happily set them equal by default. That heuristic is <strong>right most of the time and silently wrong exactly when it matters</strong> (the org whose dataset key differs), and because the call still succeeds-looking, the error is a wrong-data error, not a loud rejection. The high base-rate of equality actively trains the model into the failure.</p>
+    </div>
+    <p>Two ways out, best first:</p>
+    <ul>
+      <li><strong>Make it derivable.</strong> If the customer dataset key is a deterministic function of the org for all but a handful of cases, resolve it server-side from <code>org_name_as_key</code> and expose <code>customer</code> only as an explicit <em>override</em> for the exceptions. The model supplies one identity; the server knows the mapping. The trap disappears because the model is never asked to reconcile two near-identical values.</li>
+      <li><strong>If it must stay, maximise semantic distance.</strong> Rename <code>customer</code> → <code>customer_dataset_key</code> and have its description lead with how it <em>differs</em> from org, with a concrete unequal example. A longer, more distinct name and a difference-first description push the two fields' token representations apart, lowering the chance the model collapses them — and a default-from-org keeps the common case correct.</li>
+    </ul>
+
+    <div class="call pitfall">
+      <div class="lbl"><span class="ico">⚠</span> Don't fix repetition by making org optional <em>without</em> a default source</div>
+      <p>Simply dropping <code>org_name_as_key</code> from "required" with nowhere to resolve it from trades a verbose-but-correct surface for a silent-wrong-default one. The fix is to <strong>relocate the value to state the server can resolve</strong> (session or resource), not to make a load-bearing argument quietly optional.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CH 7 ============ -->
+<section class="chapter" id="ch7">
+  <span class="ch-tax" style="background:var(--c-sec)">⬢ Errors &amp; guards</span>
+  <div class="ch-num">Chapter 07</div>
+  <h2 class="ch-title">Errors, fallbacks, and resource guards</h2>
+  <p class="ch-lede">The server already thinks about failure — it documents fallback paths and warns about expensive queries. The refinement: move that handling out of the prose, where it depends on the model reading and obeying it, and into the server, where it binds deterministically.</p>
+  <div class="prose">
+
+    <h3>Recovery written in prose is recovery the model has to remember</h3>
+    <p>Two Facebook tools carry the same instruction: "if this returns a table-not-found error, use <code>get_facebook_adset_performance</code> instead." The intent is good. But consider the path that recovery actually takes today: the model must (1) have read that sentence, (2) recognise the specific error as the documented one, (3) decide to issue a second call to a different tool, and (4) spend another round-trip and more context doing it. Every one of those steps is a probability less than one.</p>
+    <div class="split">
+      <div class="code">
+        <div class="code-bar"><span class="lights"><i class="l1"></i><i class="l2"></i><i class="l3"></i></span><span class="fname">recovery_in_prose.txt</span><span class="tag bad">probabilistic + 2 round-trips</span></div>
+<pre>call get_facebook_ad_performance
+  → "table not found: basic_ad"
+model must: recall the note, recognise
+  the error, choose the other tool,
+  re-issue the call …
+  (each step can fail)</pre>
+      </div>
+      <div class="code">
+        <div class="code-bar"><span class="lights"><i class="l1"></i><i class="l2"></i><i class="l3"></i></span><span class="fname">recovery_in_server.txt</span><span class="tag good">deterministic + 1 hop</span></div>
+<pre>call get_facebook_ad_performance(level=<span class="s">"ad"</span>)
+  server: basic_ad unsynced →
+  transparently query basic_ad_set,
+  return data + warning:
+  "served_at_adset_level: basic_ad
+   not synced for this org"</pre>
+      </div>
+    </div>
+    <div class="call key">
+      <div class="lbl"><span class="ico">★</span> Why server-side fallback wins — the mechanism</div>
+      <p>Prose fallback makes recovery a <em>second inference problem</em>: it consumes another generation, another tool round-trip, and more resident context, and it only fires if the model both attended to the note and classified the error correctly. A server-side fallback makes recovery a <em>deterministic branch</em> — zero model tokens, zero extra round-trip, fires 100% of the time the condition holds. You move the recovery from "probabilistic and expensive" to "certain and free," and you hand the model a structured warning so its narration to the user stays accurate.</p>
+    </div>
+
+    <h3>Case study: when a backend error leaks raw</h3>
+    <p><code>search_experiments_tool</code> has been observed to fail on at least one org with a backend SQL type-casting error rather than a clean result. Whatever the root cause, the <em>interface</em> lesson is general: an opaque database exception is the worst possible thing to hand a model. It carries no actionable structure, so the model can neither retry intelligently nor explain the failure — it typically loops or apologises.</p>
+    <div class="split">
+      <div class="code">
+        <div class="code-bar"><span class="lights"><i class="l1"></i><i class="l2"></i><i class="l3"></i></span><span class="fname">leaked.json</span><span class="tag bad">nothing to act on</span></div>
+<pre>{ <span class="s">"error"</span>: <span class="s">"could not cast type "</span>
+  <span class="s">"character varying to integer at "</span>
+  <span class="s">"experiments.cell_count …"</span> }
+<span class="c">// model: ¯\_(ツ)_/¯ → retry identically</span></pre>
+      </div>
+      <div class="code">
+        <div class="code-bar"><span class="lights"><i class="l1"></i><i class="l2"></i><i class="l3"></i></span><span class="fname">handled.json</span><span class="tag good">structured + actionable</span></div>
+<pre>{ <span class="s">"isError"</span>: <span class="k">true</span>,
+  <span class="s">"code"</span>: <span class="s">"upstream_unavailable"</span>,
+  <span class="s">"message"</span>: <span class="s">"experiment search is "</span>
+    <span class="s">"temporarily unavailable for this "</span>
+    <span class="s">"org; try get_experiment by id, or "</span>
+    <span class="s">"retry without include_archived"</span>,
+  <span class="s">"retryable"</span>: <span class="k">false</span> }</pre>
+      </div>
+    </div>
+    <p>Catch backend exceptions at the tool boundary, map them to a small set of stable error codes, and return them as <code>isError: true</code> tool results (not protocol-level faults) with a message that names a concrete next move. The model can then route around the failure instead of battering it. (And fix the cast — but the boundary handling is what protects every <em>future</em> backend hiccup, too.)</p>
+
+    <h3>Resource guards: a warning the model can ignore vs a limit it cannot exceed</h3>
+    <p>Several first-party-KPI tools warn: "keep date ranges to 30 days or fewer; each additional day scans ~150–230 MB in BigQuery; ranges over 30 days will be rejected." That guard protects a <em>metered, expensive</em> backend — but it lives in prose and a runtime rejection. A model that doesn't attend to the note asks for 365 days, triggers a costly scan or a hard reject, and burns a round-trip.</p>
+    <div class="call key">
+      <div class="lbl"><span class="ico">★</span> Why a structural guard beats a prose guard — the mechanism</div>
+      <p>A prose limit is honoured only if the model reads and respects it — probabilistic, and the failure mode is a <em>cost</em> event on a per-byte-billed warehouse, which is a denial-of-wallet vector as much as a UX one. Two structural alternatives remove the gamble: <strong>(a) server-side clamp</strong> — silently cap the window to 30 days (or the max safe span) and return a <code>window_clamped</code> warning, so an over-broad request becomes a safe one automatically; or <strong>(b) server-side chunking</strong> — accept the long range, page it into ≤30-day scans internally, and stitch the result. Either converts "the model must know better" into "the server cannot be made to overspend." The constraint is enforced by control flow, not by the reader's diligence.</p>
+    </div>
+
+    <div class="call tip">
+      <div class="lbl"><span class="ico">⟐</span> Keep the two error layers distinct</div>
+      <p>Reserve protocol/JSON-RPC errors for malformed or transport-level problems. For business failures the model should react to — no data, upstream down, bad filter combination — return a normal tool result with <code>isError: true</code> and an actionable message. Mixing the two (raising a transport error for "no rows") denies the model the chance to recover in-band.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CH 8 ============ -->
+<section class="chapter" id="ch8">
+  <span class="ch-tax" style="background:var(--c-sem)">■ Semantics · Docs</span>
+  <div class="ch-num">Chapter 08</div>
+  <h2 class="ch-title">Descriptions that do too much — and the examples that are missing</h2>
+  <p class="ch-lede">The experiment descriptions are encyclopaedic: unit-grounding rules, how to read <code>prob_lift_gt_zero</code>, daily-vs-published nuances, even Jira ticket numbers. The guidance is <em>correct and valuable</em> — but it's always resident and mixes two jobs. Meanwhile the one tool that most needs a worked example, the power-analysis grid search, has none.</p>
+  <div class="prose">
+
+    <h3>One description, two jobs</h3>
+    <p><code>get_experiment_results</code> is doing both of these at once:</p>
+    <ul>
+      <li><strong>The contract</strong> — what it does, its parameters, the shape it returns. The model needs this <em>at selection time</em>, on every turn, to decide whether to call it.</li>
+      <li><strong>The methodology</strong> — "lead with <code>prob_lift_gt_zero</code>; don't collapse to CI-crosses-zero; read <code>reporting_category</code> with <code>kpi_name</code> before any unit claim; for no-holdout 3-cell tests expect cell-vs-cell entries…" The model needs this <em>only after results arrive</em>, when it's interpreting them.</li>
+    </ul>
+    <div class="call key">
+      <div class="lbl"><span class="ico">★</span> Why the split matters — the mechanism</div>
+      <p>Everything in a tool description is paid <strong>on every turn the tool is even a candidate</strong>, because the whole tool block is resident in the prefix and attended over during selection. The methodology paragraphs therefore impose two costs on turns where no experiment is being interpreted: <strong>(a)</strong> raw token weight in the always-on prefix, and <strong>(b)</strong> selection-time dilution — long descriptions make the inter-tool comparison noisier (more text to differentiate, Chapter 5). Yet the methodology is genuinely useful <em>when results are in hand</em>. The resolution is to put each piece where it's cheap: a tight contract in the tool description, and the interpretive guidance in a place the host injects <em>only when relevant</em>.</p>
+    </div>
+
+    <h3>Move methodology into a Prompt or Resource</h3>
+    <p>MCP gives you two homes for the interpretive guidance, both better than the always-on description:</p>
+    <ul>
+      <li><strong>An MCP Prompt</strong> — e.g. <code>interpret_experiment_results</code> — that packages the "how to read lift" framing as a reusable template the user (or host) invokes when they're actually analysing a readout. The steering arrives exactly when it's load-bearing and costs nothing the rest of the time.</li>
+      <li><strong>An MCP Resource</strong> — a short "reading experiment results" doc addressable by URI — that the host attaches to the context only on interpretation turns.</li>
+    </ul>
+    <div class="split">
+      <div class="code">
+        <div class="code-bar"><span class="lights"><i class="l1"></i><i class="l2"></i><i class="l3"></i></span><span class="fname">today_description.txt</span><span class="tag bad">contract + essay, always on</span></div>
+<pre>get_experiment_results:
+  "Fetch results… which_read… Returns…
+   Lead with prob_lift_gt_zero — do not
+   collapse to 'CI crosses zero →
+   inconclusive'. Unit grounding: always
+   read reporting_category and kpi_name…
+   For no-holdout 3-cell tests expect…
+   (per ENA-123)… data_source=daily…"
+  <span class="c">// ~300 tokens, every turn, every task</span></pre>
+      </div>
+      <div class="code">
+        <div class="code-bar"><span class="lights"><i class="l1"></i><i class="l2"></i><i class="l3"></i></span><span class="fname">split.txt</span><span class="tag good">tight contract + on-demand prompt</span></div>
+<pre>get_experiment_results:
+  "Results &amp; spend for an experiment.
+   which_read: midpoint|final|ptw (omit
+   for all). Returns per-cell lift,
+   prob_lift_gt_zero, cell_spend."
+  <span class="c">// lean; this is all selection needs</span>
+
+prompt: interpret_experiment_results
+  <span class="c">// the 'how to read lift' guidance,</span>
+  <span class="c">// injected only when analysing</span></pre>
+      </div>
+    </div>
+    <div class="call tip">
+      <div class="lbl"><span class="ico">⟐</span> And drop the ticket numbers</div>
+      <p><code>(per ENA-123)</code> conditions nothing useful in the model and costs tokens on every load. Internal provenance belongs in the code comment or commit, not the tool description the model reads. Same for table-join trivia ("joins creative_history → ad_history → …") unless it changes how the model <em>calls</em> the tool.</p>
+    </div>
+
+    <h3>The missing examples: <code>design_playground_power_analysis</code></h3>
+    <p>This tool has ~16 parameters, a <strong>nested-object</strong> schema (<code>cell_b_ranges: {budget_range:{min,max,step}, cpi_range:{min,max,step}}</code>), and a <strong>conditional requirement</strong> (<code>cell_c_ranges</code> is required only when <code>cardinality="three"</code>). Types alone do not tell the model how deep to nest or when the conditional fires — and this is precisely the profile of tool on which models produce malformed calls. It ships with no examples.</p>
+    <div class="code">
+      <div class="code-bar"><span class="lights"><i class="l1"></i><i class="l2"></i><i class="l3"></i></span><span class="fname">power_analysis_examples.ts</span><span class="tag good">show the nesting + the conditional</span></div>
+<pre>input_examples: [
+  { <span class="c">// 2-cell, single budget point</span>
+    org_name_as_key: <span class="s">"acme"</span>, kpi_id: 164,
+    granularity_option_id: 3, region_geo_fence_id: <span class="s">"…"</span>,
+    cardinality: <span class="s">"two"</span>, kpi_volume: 42000,
+    duration_weeks: [4, 8],
+    holdout_size_percentages: [10, 20, 30],
+    cell_b_ranges: { budget_range:{min:50000,max:50000,step:0},
+                     cpi_range:{min:3.0,max:3.0,step:0} } },
+  { <span class="c">// 3-cell → cell_c_ranges now required</span>
+    org_name_as_key: <span class="s">"acme"</span>, kpi_id: 164, cardinality: <span class="s">"three"</span>,
+    <span class="hl">cell_c_ranges</span>: { budget_range:{min:20000,max:60000,step:20000},
+                     cpi_range:{min:2.5,max:4.0,step:0.5} }, <span class="c">/*…*/</span> } ]</pre>
+    </div>
+    <div class="call key">
+      <div class="lbl"><span class="ico">★</span> Why an example beats a longer docstring — the mechanism</div>
+      <p>A nested, conditional schema is <em>under-determined</em> by its type signature — there are many syntactically-valid-but-wrong nestings. A worked example supplies a concrete <strong>template the model copies and mutates</strong> rather than synthesises from scratch: the same induction-head machinery from Chapter 3 lets it lift the <code>{budget_range, cpi_range}</code> structure verbatim and substitute values, which is far more reliable than reconstructing two levels of nesting from prose. The second example <em>demonstrates</em> the conditional (<code>cardinality="three"</code> ⇒ <code>cell_c_ranges</code> present), resolving by example what a sentence ("required when…") leaves the model to infer. Published results put complex-schema call accuracy rising from roughly 72% to 90% with a handful of such examples — concentrate them on exactly the nesting and conditionals, not the obvious scalar fields.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CH 9 ============ -->
+<section class="chapter" id="ch9">
+  <span class="ch-tax" style="background:var(--c-ops)">◐ Remediation</span>
+  <div class="ch-num">Chapter 09</div>
+  <h2 class="ch-title">A remediation roadmap</h2>
+  <p class="ch-lede">Sequenced by impact-over-effort, and chosen so that nothing breaks an in-flight agent. The highest-leverage moves are also the cheapest: most are additive schema and server changes, not redesigns.</p>
+  <div class="prose">
+
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Issue</th><th>Fix</th><th>Why it moves the needle</th><th>Effort</th></tr></thead>
+        <tbody>
+          <tr><td>Closed value sets as free strings (Ch.4)</td><td>Promote to schema <code>enum</code> + normalise</td><td>Constrained decoding makes invalid values unsamplable</td><td>Low</td></tr>
+          <tr><td>Raw backend errors (Ch.7)</td><td>Boundary handler → <code>isError</code> + code + next-move</td><td>Model can route around failure instead of looping</td><td>Low</td></tr>
+          <tr><td>Ticket refs / join trivia in descriptions (Ch.8)</td><td>Strip to code comments</td><td>Smaller always-on prefix, sharper selection</td><td>Low</td></tr>
+          <tr><td>BigQuery window only prose-guarded (Ch.7)</td><td>Server-side clamp or chunk</td><td>Backend cannot be made to overspend</td><td>Low</td></tr>
+          <tr><td>Identity drift: kpi/readout/date/region (Ch.3)</td><td>Canonical names via additive aliases</td><td>Restores induction-copy across tool chains</td><td>Med</td></tr>
+          <tr><td>Prose-only table fallback (Ch.7)</td><td>Transparent server-side fallback</td><td>Recovery becomes deterministic + 1 hop</td><td>Med</td></tr>
+          <tr><td><code>customer</code> vs <code>org</code> trap (Ch.6)</td><td>Derive customer from org; override only</td><td>Model never reconciles two near-equal keys</td><td>Med</td></tr>
+          <tr><td>Methodology in tool descriptions (Ch.8)</td><td>Move to MCP Prompts / Resources</td><td>Steering present only when interpreting</td><td>Med</td></tr>
+          <tr><td>21 near-duplicate paid-media getters (Ch.5)</td><td>Consolidate behind a <code>level</code> enum</td><td>Wider selection margin + fewer tokens</td><td>High</td></tr>
+          <tr><td>69-tool prefix (Ch.5)</td><td>Tool Search + <code>defer_loading</code></td><td>~85% less definition overhead; curated shortlist</td><td>Med</td></tr>
+          <tr><td>Org repeated on every call (Ch.6)</td><td><code>set_active_org</code> + optional org</td><td>Removes a multiplicative failure factor per chain</td><td>Med</td></tr>
+          <tr><td>12 list_* lookups cost calls (Ch.5)</td><td>Expose reference data as Resources</td><td>IDs referenced by URI, reused across turns</td><td>High</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Sequencing</h3>
+    <p><strong>Phase 1 — same-day, pure upside.</strong> Add enums to every closed value set, wrap backend calls in an error boundary that returns actionable <code>isError</code> results, clamp the BigQuery window server-side, and strip ticket numbers and join-trivia from descriptions. None of these changes a call signature; all of them raise first-try success or cut tokens immediately.</p>
+    <p><strong>Phase 2 — additive, deprecation-gated.</strong> Introduce the canonical vocabulary (Ch.3) as <em>aliases</em> the handlers accept alongside the legacy names, normalising to one type at the boundary; default <code>customer</code> from <code>org</code>; add transparent table fallback; move the experiment-interpretation guidance into a Prompt. Each is backward-compatible, so in-flight conversations keep working while new ones converge on the better surface.</p>
+    <p><strong>Phase 3 — structural.</strong> Consolidate the paid-media getters behind a <code>level</code> enum, stand up the Tool Search Tool with the long tail deferred, add <code>set_active_org</code> and make <code>org_name_as_key</code> optional, and migrate the heaviest discovery lists to Resources. These reshape the surface and deserve their own eval pass (next paragraph).</p>
+
+    <div class="call key">
+      <div class="lbl"><span class="ico">★</span> Measure it — don't eyeball it</div>
+      <p>Stand up a held-out set of realistic, multi-tool tasks ("find every org where experiment X beat its holdout," "at $50k/week and iROAS 3.0, minimum holdout for 80% power") and track, per task: first-try call success, malformed-argument rate, tool-call count, total tokens, and end-to-end accuracy. Run it before and after each phase. The mechanisms in this review predict <em>direction</em> (enums cut malformed args; deferral cuts tokens and lifts selection; canonical names cut chain breaks) — the eval tells you the <em>magnitude</em> on your real workload, and catches any regression a refactor introduces.</p>
+    </div>
+
+    <div class="checklist">
+      <div class="cl-head">
+        <h4>Remediation backlog</h4>
+        <div class="cl-prog"><div class="bar"><div class="fill"></div></div><span class="pct">0%</span></div>
+      </div>
+      <div class="cl-body">
+        <div class="check"><span class="box"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-11" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="ctext"><b>Enum every closed set.</b> <code>attribution_model</code>, <code>accounting_mode</code>, <code>metric</code>, <code>granularity</code>, <code>lookback_window</code>, <code>match_type</code>, <code>device</code>, <code>cardinality</code>, … become schema enums + server normalisation.</span></div>
+        <div class="check"><span class="box"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-11" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="ctext"><b>Error boundary on every tool.</b> Backend exceptions become <code>isError:true</code> with a stable <code>code</code> and a concrete next move; protocol errors reserved for transport faults.</span></div>
+        <div class="check"><span class="box"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-11" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="ctext"><b>Strip provenance noise.</b> Ticket numbers and SQL-join trivia out of descriptions and into comments.</span></div>
+        <div class="check"><span class="box"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-11" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="ctext"><b>Clamp metered windows.</b> First-party-KPI date ranges clamped or chunked server-side, with a <code>window_clamped</code> warning.</span></div>
+        <div class="check"><span class="box"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-11" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="ctext"><b>Adopt the canonical vocabulary.</b> One name + one type per concept (<code>kpi_id</code>, <code>readout</code>, <code>start_date</code>/<code>end_date</code>, <code>max_results</code>, <code>region_id</code>), shipped as additive aliases.</span></div>
+        <div class="check"><span class="box"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-11" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="ctext"><b>Default <code>customer</code> from <code>org</code>.</b> Resolve server-side; expose <code>customer_dataset_key</code> only as an explicit override.</span></div>
+        <div class="check"><span class="box"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-11" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="ctext"><b>Transparent table fallback.</b> Ad-level tools fall back to ad-set tables internally with a warning, instead of a prose instruction.</span></div>
+        <div class="check"><span class="box"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-11" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="ctext"><b>Examples on high-arity tools.</b> <code>design_playground_power_analysis</code> ships <code>input_examples</code> demonstrating the nesting and the <code>cardinality="three"</code> conditional.</span></div>
+        <div class="check"><span class="box"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-11" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="ctext"><b>Methodology → Prompts/Resources.</b> Experiment-interpretation guidance leaves the always-on descriptions for on-demand injection.</span></div>
+        <div class="check"><span class="box"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-11" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="ctext"><b>Consolidate paid-media getters.</b> Granularity variants fold behind a <code>level</code> enum where the tables allow.</span></div>
+        <div class="check"><span class="box"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-11" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="ctext"><b>Defer the long tail.</b> Tool Search Tool + <code>defer_loading:true</code> on all but the hot set.</span></div>
+        <div class="check"><span class="box"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-11" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="ctext"><b>Session org + reference Resources.</b> <code>set_active_org</code> with optional per-call org; migrate the heaviest <code>list_*</code> data to URI-addressable Resources.</span></div>
+        <div class="check"><span class="box"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-11" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="ctext"><b>Stand up the eval harness.</b> Realistic multi-tool tasks; track first-try success, malformed-args, call count, tokens, accuracy — before/after each phase.</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ APPENDIX A ============ -->
+<section class="chapter" id="apxA" data-appx>
+  <span class="ch-tax" style="background:var(--ink-2)">✚ Reference</span>
+  <div class="ch-num">Appendix A</div>
+  <h2 class="ch-title">The canonical vocabulary</h2>
+  <p class="ch-lede">One name, one type, one format per concept — the target state for Chapter 3's migration. Ship each canonical name as an additive alias first; retire the legacy column once telemetry shows it has drained.</p>
+  <div class="prose">
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Concept</th><th>Canonical name</th><th>Type / format</th><th>Replaces (legacy aliases)</th></tr></thead>
+        <tbody>
+          <tr><td>KPI identity</td><td><code>kpi_id</code></td><td><b>string</b>, the dict key from <code>list_cmmm_contexts</code> (e.g. "164")</td><td><code>kpi_key</code>, <code>kpi_name_as_key</code>, <code>kpi_name</code>; int form of <code>kpi_id</code></td></tr>
+          <tr><td>Readout / revision</td><td><code>readout</code></td><td><b>enum</b> [midpoint, final, ptw]</td><td><code>which_read</code>, <code>readout_type</code>, <code>revision_type</code></td></tr>
+          <tr><td>Window start</td><td><code>start_date</code></td><td>string "YYYY-MM-DD"</td><td><code>date_from</code>, <code>curr_start</code></td></tr>
+          <tr><td>Window end</td><td><code>end_date</code></td><td>string "YYYY-MM-DD"</td><td><code>date_to</code>, <code>curr_end</code></td></tr>
+          <tr><td>Comparison window</td><td><code>comparison_start</code> / <code>comparison_end</code></td><td>string "YYYY-MM-DD" (only when a comparison exists)</td><td><code>comp_start</code> / <code>comp_end</code></td></tr>
+          <tr><td>Result cap</td><td><code>max_results</code></td><td><b>integer</b>, documented default + ceiling</td><td><code>limit</code></td></tr>
+          <tr><td>Page offset</td><td><code>offset</code></td><td>integer, default 0</td><td>— (already consistent)</td></tr>
+          <tr><td>Region identity</td><td><code>region_id</code></td><td><b>integer</b> from <code>list_regions</code>; add <code>region_kind</code> only if a geofence is truly a different entity</td><td><code>region_geo_fence_id</code>, <code>region</code></td></tr>
+          <tr><td>Attribution model</td><td><code>attribution_model</code></td><td><b>enum</b> [last_click, first_click, linear]</td><td>free string</td></tr>
+          <tr><td>Accounting mode</td><td><code>accounting_mode</code></td><td><b>enum</b> [cash, accrual]</td><td>free string</td></tr>
+          <tr><td>Lookback window</td><td><code>lookback_window</code></td><td><b>enum</b> [1, 7, 14, 28]</td><td>free integer</td></tr>
+          <tr><td>Metric / granularity</td><td><code>metric</code> / <code>granularity</code></td><td><b>enum</b> [spend, revenue, orders] / [daily, weekly, monthly]</td><td>free string</td></tr>
+          <tr><td>Cell count</td><td><code>cardinality</code></td><td><b>enum</b> [two, three] (or integer <code>num_cells</code>)</td><td>free string</td></tr>
+          <tr><td>Aggregation level</td><td><code>level</code></td><td><b>enum</b> per family (e.g. [ad, adset, campaign, daily…])</td><td>per-tool <code>group_by</code> + separate tools</td></tr>
+          <tr><td>Organization</td><td><code>org_name_as_key</code></td><td>string; <b>optional</b> once <code>set_active_org</code> exists</td><td>— (uniform, but mandatory today)</td></tr>
+          <tr><td>Customer dataset</td><td><code>customer_dataset_key</code></td><td>string; <b>defaulted from org</b>, override only</td><td><code>customer</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="call tip">
+      <div class="lbl"><span class="ico">⟐</span> The single rule behind the whole table</div>
+      <p>If two tools mean the same thing, they use the same name and the same type; if a parameter has a closed set of legal values, that set lives in the schema as an <code>enum</code>. Everything above is those two rules applied mechanically across the surface.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ APPENDIX B ============ -->
+<section class="chapter" id="apxB" data-appx>
+  <span class="ch-tax" style="background:var(--ink-2)">✚ Reference</span>
+  <div class="ch-num">Appendix B</div>
+  <h2 class="ch-title">Per-family scorecard</h2>
+  <p class="ch-lede">Where each family stands on the five axes that govern LLM ergonomics. The pattern is clear: consistency and discipline are strong <em>inside</em> families and uneven <em>across</em> them — and the families that score lowest are precisely where the most-used analytics chains run.</p>
+  <div class="prose">
+    <p style="font-size:13px;color:var(--ink-soft)">Legend: <b style="color:var(--c-scale)">✓</b> solid &nbsp;·&nbsp; <b style="color:var(--c-schema)">~</b> partial / inconsistent &nbsp;·&nbsp; <b style="color:var(--c-sec)">✗</b> weak</p>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Family</th><th>Naming</th><th>Enums</th><th>Payload</th><th>Errors</th><th>Discovery</th><th>Verdict</th></tr></thead>
+        <tbody>
+          <tr><td><b>Google paid media</b></td><td><b style="color:var(--c-scale)">✓</b></td><td><b style="color:var(--c-schema)">~</b></td><td><b style="color:var(--c-scale)">✓</b></td><td><b style="color:var(--c-schema)">~</b></td><td><b style="color:var(--c-schema)">~</b></td><td>Exemplary dialect; value-filters need enums; many granularity twins.</td></tr>
+          <tr><td><b>Meta / Facebook</b></td><td><b style="color:var(--c-scale)">✓</b></td><td><b style="color:var(--c-schema)">~</b></td><td><b style="color:var(--c-scale)">✓</b></td><td><b style="color:var(--c-schema)">~</b></td><td><b style="color:var(--c-schema)">~</b></td><td>Mirrors Google. Table fallback is prose, not server.</td></tr>
+          <tr><td><b>Causal MMM</b></td><td><b style="color:var(--c-schema)">~</b></td><td><b style="color:var(--c-scale)">✓</b></td><td><b style="color:var(--c-scale)">✓</b></td><td><b style="color:var(--c-schema)">~</b></td><td><b style="color:var(--c-scale)">✓</b></td><td>Best enum + payload discipline on the surface; <code>kpi_id</code> drifts vs other families.</td></tr>
+          <tr><td><b>Experiment read &amp; analyse</b></td><td><b style="color:var(--c-sec)">✗</b></td><td><b style="color:var(--c-schema)">~</b></td><td><b style="color:var(--c-scale)">✓</b></td><td><b style="color:var(--c-schema)">~</b></td><td><b style="color:var(--c-schema)">~</b></td><td>Rich interpretive steering, but readout/KPI names drift the most here.</td></tr>
+          <tr><td><b>Attribution</b></td><td><b style="color:var(--c-sec)">✗</b></td><td><b style="color:var(--c-sec)">✗</b></td><td><b style="color:var(--c-schema)">~</b></td><td><b style="color:var(--c-schema)">~</b></td><td><b style="color:var(--c-schema)">~</b></td><td><code>curr_*/comp_*</code> vs <code>start/end</code>; all value-filters free; <code>customer</code> trap lives here.</td></tr>
+          <tr><td><b>Experiment design &amp; power</b></td><td><b style="color:var(--c-schema)">~</b></td><td><b style="color:var(--c-sec)">✗</b></td><td><b style="color:var(--c-scale)">✓</b></td><td><b style="color:var(--c-schema)">~</b></td><td><b style="color:var(--c-scale)">✓</b></td><td>Discovery is well-bootstrapped; <code>kpi_id</code> type-flips to int; nested schema ships no examples.</td></tr>
+          <tr><td><b>Discovery · list · search</b></td><td><b style="color:var(--c-schema)">~</b></td><td><b style="color:var(--c-scale)">✓</b></td><td><b style="color:var(--c-scale)">✓</b></td><td><b style="color:var(--c-sec)">✗</b></td><td><b style="color:var(--c-scale)">✓</b></td><td>The right pattern; <code>_tool</code> suffix + <code>limit</code>/<code>max_results</code> inconsistency; search SQL leak.</td></tr>
+          <tr><td><b>First-party KPIs &amp; volume</b></td><td><b style="color:var(--c-schema)">~</b></td><td><b style="color:var(--c-sec)">✗</b></td><td><b style="color:var(--c-scale)">✓</b></td><td><b style="color:var(--c-schema)">~</b></td><td><b style="color:var(--c-scale)">✓</b></td><td>Good discovery; metered window only prose-guarded; <code>kpi_key</code> is yet another KPI name.</td></tr>
+          <tr><td><b>Cross-platform &amp; campaign</b></td><td><b style="color:var(--c-schema)">~</b></td><td><b style="color:var(--c-schema)">~</b></td><td><b style="color:var(--c-schema)">~</b></td><td><b style="color:var(--c-schema)">~</b></td><td><b style="color:var(--c-schema)">~</b></td><td>Small family; inherits the cross-family date/identity drift.</td></tr>
+          <tr><td><b>Channel groups</b></td><td><b style="color:var(--c-scale)">✓</b></td><td><b style="color:var(--c-schema)">~</b></td><td><b style="color:var(--c-scale)">✓</b></td><td><b style="color:var(--c-schema)">~</b></td><td><b style="color:var(--c-scale)">✓</b></td><td>Lean and tidy; mostly org-only inputs, little to get wrong.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="call key">
+      <div class="lbl"><span class="ico">★</span> Reading the scorecard</div>
+      <p>Two columns tell the strategy. <strong>Enums</strong> is worst in attribution / first-party / power — a Phase-1, low-effort fix (Ch.4). <strong>Naming</strong> is worst in experiments and attribution — the Phase-2 canonical-vocabulary work (Ch.3) — and those are the families most central to everyday "did this lift, and what drove it" analysis, so the cross-family drift is felt on the highest-traffic chains. cMMM and the paid-media families are the models to copy: lift their enum discipline and payload control onto everyone else.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ APPENDIX C ============ -->
+<section class="chapter" id="apxC" data-appx>
+  <span class="ch-tax" style="background:var(--ink-2)">✚ Reference</span>
+  <div class="ch-num">Appendix C</div>
+  <h2 class="ch-title">Pre-merge review checklist</h2>
+  <p class="ch-lede">Run this before any new <code>haus-mcp-internal</code> tool ships, and against any tool being touched. It encodes the whole review as a gate — every item maps to a mechanism in the chapters above. Tap to track.</p>
+  <div class="prose">
+    <div class="checklist">
+      <div class="cl-head">
+        <h4>New-tool gate</h4>
+        <div class="cl-prog"><div class="bar"><div class="fill"></div></div><span class="pct">0%</span></div>
+      </div>
+      <div class="cl-body">
+        <div class="check"><span class="box"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-11" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="ctext"><b>Reuses the canonical vocabulary.</b> Every concept it shares with another tool uses the same name <em>and</em> the same type (Appendix A). No new alias for an existing idea.</span></div>
+        <div class="check"><span class="box"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-11" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="ctext"><b>Every closed value set is a schema <code>enum</code>.</b> If you wrote "one of X / Y / Z" in the description, it belongs in the schema, not the prose (Ch.4).</span></div>
+        <div class="check"><span class="box"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-11" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="ctext"><b>Org resolves from session.</b> <code>org_name_as_key</code> defaults from <code>set_active_org</code>; required model-supplied identity args are kept to the minimum (Ch.6).</span></div>
+        <div class="check"><span class="box"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-11" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="ctext"><b>No two near-equal identity args.</b> If a value can be derived (customer from org), derive it; expose the rare exception as an explicit override, not a co-equal field (Ch.6).</span></div>
+        <div class="check"><span class="box"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-11" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="ctext"><b>Errors are <code>isError</code> + code + next move.</b> No raw backend exception ever reaches the model; protocol faults reserved for transport problems (Ch.7).</span></div>
+        <div class="check"><span class="box"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-11" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="ctext"><b>Payload is bounded.</b> <code>max_results</code>/<code>offset</code> with documented defaults; <code>compact</code>/<code>top_k</code>/summary modes for anything that can return large arrays (Ch.2, Ch.5).</span></div>
+        <div class="check"><span class="box"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-11" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="ctext"><b>Metered backends guarded structurally.</b> Expensive scan limits are clamped or chunked server-side, not left to a prose warning (Ch.7).</span></div>
+        <div class="check"><span class="box"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-11" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="ctext"><b>Nested / conditional schemas carry <code>input_examples</code>.</b> Demonstrate the nesting and any "required when…" conditional by example (Ch.8).</span></div>
+        <div class="check"><span class="box"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-11" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="ctext"><b>Description is a contract, not an essay.</b> What it does, params, return shape. Interpretation guidance lives in a Prompt/Resource; ticket numbers and join trivia live in code comments (Ch.8).</span></div>
+        <div class="check"><span class="box"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-11" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="ctext"><b>Not a granularity twin.</b> If it differs from an existing tool only by level/table, it's a <code>level</code> enum value on that tool, not a new tool (Ch.5).</span></div>
+        <div class="check"><span class="box"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-11" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="ctext"><b>Deferred unless hot.</b> If it isn't among the highest-frequency tools, it ships behind the Tool Search Tool with <code>defer_loading: true</code> (Ch.5).</span></div>
+        <div class="check"><span class="box"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-11" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="ctext"><b>Has an eval task.</b> A realistic task that exercises it is added to the harness, so first-try success and token cost are tracked from day one (Ch.9).</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+</div><!-- /.shell -->
+
+<!-- ===================== COLOPHON ===================== -->
+<footer class="colophon">
+  <div class="cwrap">
+    <div>
+      <h3>A closing note</h3>
+      <p>This server is closer to good than the length of this review suggests. It already does the hard, rare things — server-side payload truncation, posterior-probability guidance, scoped permissions, discovery bootstrapping. Its weaknesses are the quiet, compounding kind: one concept wearing four names, a constraint written where the schema can't enforce it, a tool count that blurs selection. Read every fix against the single yardstick from Chapter 1 — <em>can a non-deterministic reader find it, call it right the first time, use what comes back, and chain it onward?</em></p>
+      <p>The good news is the shape of the work: almost every recommendation is <strong>additive and measurable</strong>. Enums, error boundaries, and clamps ship today with no signature change. The canonical vocabulary ships as aliases that never break a running agent. And nothing here is taste — stand up the eval harness, run it before and after each phase, and let the numbers decide.</p>
+      <div class="sig">The Infrastructure Field Manual · Server Design Review · Rev. 2026.06</div>
+    </div>
+    <div>
+      <p style="font-family:var(--mono);font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-faint);margin:0 0 14px;border-bottom:1px solid var(--rule);padding-bottom:10px;">Basis &amp; sources</p>
+      <div class="srcs">
+        Schemas, parameters, enums &amp; descriptions inspected <b>live</b> from the running <code>haus-mcp-internal</code> server — June 2026.<br>
+        Design principles &amp; mechanisms — Anthropic, <a href="https://www.anthropic.com/engineering/writing-tools-for-agents">Writing effective tools for agents</a><br>
+        Scaling levers — Anthropic, <a href="https://docs.claude.com">advanced tool use (tool search · programmatic calling · tool-use examples)</a><br>
+        Primitives (Resources, Prompts, errors) — <a href="https://modelcontextprotocol.io">Model Context Protocol specification</a><br>
+        <span style="color:var(--ink-faint)">Published figures attributed to their sources in-text and treated as snapshots; the <code>search_experiments_tool</code> SQL fault is reported as an observed failure mode, not a fresh reproduction. Verify platform features and beta headers against current docs before shipping.</span>
+      </div>
+    </div>
+  </div>
+</footer>
+<!-- ===================== INTERACTIVITY ===================== -->
+<script>
+(function(){
+  'use strict';
+
+  /* ---------- 1. Build the table of contents from chapters ---------- */
+  var chapters   = Array.prototype.slice.call(document.querySelectorAll('.chapter'));
+  var listD      = document.getElementById('toc-list');
+  var listM      = document.getElementById('toc-list-m');
+  var tocLinks   = [];
+
+  chapters.forEach(function(sec){
+    var titleEl = sec.querySelector('.ch-title');
+    if(!sec.id || !titleEl) return;
+    var title  = titleEl.textContent.trim();
+    var isAppx = sec.hasAttribute('data-appx');
+    [listD, listM].forEach(function(list){
+      if(!list) return;
+      var li = document.createElement('li');
+      if(isAppx) li.className = 'appx';
+      var a = document.createElement('a');
+      a.href = '#' + sec.id;
+      a.textContent = title;
+      a.setAttribute('data-target', sec.id);
+      li.appendChild(a);
+      list.appendChild(li);
+      tocLinks.push(a);
+    });
+  });
+
+  /* smooth scroll + collapse the mobile drawer on selection */
+  tocLinks.forEach(function(a){
+    a.addEventListener('click', function(e){
+      e.preventDefault();
+      var t = document.getElementById(a.getAttribute('data-target'));
+      if(!t) return;
+      t.scrollIntoView({behavior:'smooth', block:'start'});
+      var open = document.querySelector('.toc-mobile details[open]');
+      if(open) open.removeAttribute('open');
+      if(history.replaceState) history.replaceState(null,'','#'+a.getAttribute('data-target'));
+    });
+  });
+
+  function setActive(id){
+    for(var i=0;i<tocLinks.length;i++){
+      if(tocLinks[i].getAttribute('data-target')===id) tocLinks[i].classList.add('active');
+      else tocLinks[i].classList.remove('active');
+    }
+  }
+
+  /* ---------- 2. Reading-progress bar + active-section sync ---------- */
+  var bar = document.getElementById('progress');
+  var ticking = false;
+  function frame(){
+    var doc = document.documentElement;
+    var scrolled = doc.scrollTop || document.body.scrollTop;
+    var range = (doc.scrollHeight - doc.clientHeight) || 1;
+    var pct = scrolled / range * 100;
+    if(pct < 0) pct = 0; if(pct > 100) pct = 100;
+    if(bar) bar.style.width = pct.toFixed(2) + '%';
+
+    var threshold = 150;
+    var current = chapters.length ? chapters[0].id : null;
+    for(var i=0;i<chapters.length;i++){
+      if(chapters[i].getBoundingClientRect().top <= threshold) current = chapters[i].id;
+      else break;
+    }
+    if(current) setActive(current);
+    ticking = false;
+  }
+  function onScroll(){ if(!ticking){ requestAnimationFrame(frame); ticking = true; } }
+  window.addEventListener('scroll', onScroll, {passive:true});
+  window.addEventListener('resize', onScroll);
+  frame();
+
+  /* ---------- 3. Decision-tree picker engine ---------- */
+  Array.prototype.slice.call(document.querySelectorAll('.widget[data-picker]')).forEach(function(widget){
+    var steps    = Array.prototype.slice.call(widget.querySelectorAll('.step'));
+    var verdicts = Array.prototype.slice.call(widget.querySelectorAll('.verdict'));
+    var crumbEl  = widget.querySelector('.crumb');
+    var startId  = steps.length ? steps[0].getAttribute('data-step') : null;
+    var trail    = [];
+
+    function hideAll(){
+      steps.forEach(function(s){ s.style.display = 'none'; });
+      verdicts.forEach(function(v){ v.classList.remove('show'); });
+    }
+    function showStep(id){
+      hideAll();
+      var s = widget.querySelector('.step[data-step="' + id + '"]');
+      if(s) s.style.display = '';
+    }
+    function showVerdict(id){
+      hideAll();
+      var v = widget.querySelector('.verdict[data-verdict-id="' + id + '"]');
+      if(v) v.classList.add('show');
+    }
+    function renderCrumb(){
+      if(!crumbEl) return;
+      if(!trail.length){ crumbEl.innerHTML = ''; return; }
+      var html = '';
+      for(var i=0;i<trail.length;i++){
+        var label = String(trail[i]).replace(/[<>&]/g, function(c){
+          return c === '<' ? '&lt;' : c === '>' ? '&gt;' : '&amp;';
+        });
+        if(i) html += ' <span style="opacity:.5">&rsaquo;</span> ';
+        html += (i === trail.length - 1) ? ('<b>' + label + '</b>') : label;
+      }
+      crumbEl.innerHTML = html;
+    }
+    function reset(){
+      trail = [];
+      renderCrumb();
+      if(startId) showStep(startId);
+    }
+
+    widget.addEventListener('click', function(e){
+      var opt = e.target.closest ? e.target.closest('.opt') : null;
+      if(opt && widget.contains(opt)){
+        var label = opt.getAttribute('data-crumb');
+        if(label){ trail.push(label); renderCrumb(); }
+        var verdict = opt.getAttribute('data-verdict');
+        var next = opt.getAttribute('data-next');
+        if(verdict) showVerdict(verdict);
+        else if(next) showStep(next);
+        return;
+      }
+      var again = e.target.closest ? e.target.closest('.again') : null;
+      if(again && widget.contains(again)){ reset(); }
+    });
+
+    reset();
+  });
+
+  /* ---------- 4. Tappable checklists with progress ---------- */
+  Array.prototype.slice.call(document.querySelectorAll('.checklist')).forEach(function(cl){
+    var checks = Array.prototype.slice.call(cl.querySelectorAll('.check'));
+    var fill = cl.querySelector('.cl-prog .fill');
+    var pct  = cl.querySelector('.cl-prog .pct');
+    function update(){
+      var done = cl.querySelectorAll('.check.done').length;
+      var total = checks.length || 1;
+      var p = Math.round(done / total * 100);
+      if(fill) fill.style.width = p + '%';
+      if(pct)  pct.textContent = p + '%';
+    }
+    checks.forEach(function(c){
+      c.addEventListener('click', function(){
+        c.classList.toggle('done');
+        update();
+      });
+    });
+    update();
+  });
+
+})();
+</script>
+</body>
+</html>
