@@ -1,0 +1,844 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>haus-rbac-api — Auth Hot Path &amp; Architecture Deep Dive</title>
+<script>
+  /* Set theme before paint to avoid a flash. Degrades gracefully if storage is blocked. */
+  try{
+    var _t = localStorage.getItem('rbac-theme') ||
+      ((window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light');
+    document.documentElement.setAttribute('data-theme', _t);
+  }catch(e){ document.documentElement.setAttribute('data-theme','light'); }
+</script>
+<style>
+  /* ============================================================
+     Warm print-editorial theme · light (paper-cream) + dark (soft)
+     Variable NAMES are kept stable so inline styles keep working;
+     only their VALUES change per theme.
+     ============================================================ */
+  :root{
+    color-scheme:light;
+    --serif:"Iowan Old Style","Palatino Linotype",Palatino,"Book Antiqua","Hoefler Text",Georgia,"Times New Roman",serif;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;
+    --mono:"SF Mono",ui-monospace,"JetBrains Mono","Cascadia Code",Menlo,Consolas,monospace;
+
+    --bg:#ece2cc;            /* paper cream */
+    --surface:#f8f2e4;       /* page sheet */
+    --surface-2:#f1e8d4;     /* subtle alt fill */
+    --ink:#2c2620;           /* warm near-black */
+    --ink-soft:#574e42;
+    --muted:#8b7f6c;
+    --line:#ddd0b4;          /* warm hairline */
+    --line-strong:#c9b994;
+
+    --accent:#a8472f;        --brand:#a8472f;     /* terracotta / brick */
+    --accent-2:#9a6b2f;      --brand-2:#9a6b2f;   /* bronze / ochre */
+    --accent-soft:#f0e1d4;   --brand-soft:#f0e1d4;
+
+    --ok:#5e7a3c;     --ok-soft:#e8ecd6;          /* olive */
+    --warn:#9a7016;   --warn-soft:#f4e9cf;        /* ochre */
+    --danger:#a8432f; --danger-soft:#f2e0d6;      /* brick red */
+    --info:#8a6d3a;   --info-soft:#f1e7d3;        /* warm bronze */
+
+    --code-bg:#2b2620; --code-ink:#e9dcc4; --code-dim:#a08f73;
+    --kw:#cf9b86; --str:#a9b06d; --num:#d6a25e; --com:#8f8164; --fn:#a7b0c0;
+
+    --radius:7px;
+    --shadow:0 1px 0 rgba(80,60,30,.04), 0 14px 34px -22px rgba(70,50,25,.30);
+  }
+  [data-theme="dark"]{
+    color-scheme:dark;
+    --bg:#201d18;
+    --surface:#2a2620;
+    --surface-2:#322d26;
+    --ink:#e3dccb;           /* warm off-white — not pure white */
+    --ink-soft:#b6ac98;
+    --muted:#8c8270;
+    --line:#3a352c;
+    --line-strong:#4b453a;
+
+    --accent:#d28a6e;        --brand:#d28a6e;
+    --accent-2:#c9a96b;      --brand-2:#c9a96b;
+    --accent-soft:#352a23;   --brand-soft:#352a23;
+
+    --ok:#9bb06e;     --ok-soft:#2b3022;
+    --warn:#d2a85e;   --warn-soft:#332a1d;
+    --danger:#d98a6f; --danger-soft:#33261f;
+    --info:#c9a96b;   --info-soft:#322a20;
+
+    --code-bg:#1b1813; --code-ink:#e6d9c1; --code-dim:#9c8c72;
+    --shadow:0 1px 0 rgba(0,0,0,.25), 0 16px 34px -24px rgba(0,0,0,.65);
+  }
+
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--serif);
+    font-size:18px;line-height:1.72;-webkit-font-smoothing:antialiased;
+    transition:background-color .3s ease,color .3s ease}
+  a{color:var(--accent);text-decoration:none;text-underline-offset:2px}
+  a:hover{text-decoration:underline}
+
+  /* ---------- layout ---------- */
+  .wrap{max-width:1160px;margin:0 auto;padding:0 26px}
+  .grid{display:grid;grid-template-columns:262px minmax(0,1fr);gap:46px;align-items:start}
+  @media(max-width:980px){.grid{grid-template-columns:1fr}.toc{display:none}}
+
+  /* ---------- theme toggle ---------- */
+  #themeToggle{position:fixed;top:16px;right:16px;z-index:60;display:inline-flex;align-items:center;
+    gap:8px;font-family:var(--sans);font-size:12px;font-weight:700;letter-spacing:.06em;
+    text-transform:uppercase;color:var(--ink-soft);background:var(--surface);
+    border:1px solid var(--line-strong);border-radius:999px;padding:8px 14px;cursor:pointer;
+    box-shadow:var(--shadow);transition:background .25s,color .25s,border-color .25s}
+  #themeToggle:hover{color:var(--accent);border-color:var(--accent)}
+  #themeToggle svg{width:15px;height:15px;display:block}
+  #themeToggle .i-sun{display:none}
+  #themeToggle .i-moon{display:inline}
+  #themeToggle .lbl-light{display:none}
+  #themeToggle .lbl-dark{display:inline}
+  [data-theme="dark"] #themeToggle .i-sun{display:inline}
+  [data-theme="dark"] #themeToggle .i-moon{display:none}
+  [data-theme="dark"] #themeToggle .lbl-light{display:inline}
+  [data-theme="dark"] #themeToggle .lbl-dark{display:none}
+
+  /* ---------- masthead ---------- */
+  header.hero{background:var(--bg);padding:62px 0 28px}
+  .masthead{position:relative}
+  .rule-top{border-top:2px solid var(--accent);width:64px;margin-bottom:22px}
+  .eyebrow{font-family:var(--sans);font-size:12px;letter-spacing:.22em;text-transform:uppercase;
+    color:var(--accent);font-weight:700;margin:0 0 16px}
+  header.hero h1{font-family:var(--serif);font-weight:700;font-size:40px;line-height:1.14;
+    letter-spacing:-.012em;margin:0 0 18px;max-width:18ch;max-width:880px}
+  header.hero p.lede{font-size:20px;line-height:1.55;color:var(--ink-soft);font-style:italic;
+    max-width:760px;margin:0 0 26px}
+  .meta-line{display:flex;flex-wrap:wrap;gap:8px 0;font-family:var(--sans);font-size:11.5px;
+    letter-spacing:.1em;text-transform:uppercase;color:var(--muted);
+    border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:12px 0}
+  .meta-line span{padding:0 16px;position:relative}
+  .meta-line span:first-child{padding-left:0}
+  .meta-line span:not(:last-child)::after{content:"";position:absolute;right:0;top:2px;bottom:2px;
+    width:1px;background:var(--line-strong)}
+  .meta-line b{color:var(--ink);font-weight:700;letter-spacing:.04em}
+
+  main{padding:38px 0 90px}
+  section{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+    padding:34px 42px;margin:0 0 24px;box-shadow:var(--shadow);scroll-margin-top:18px;
+    transition:background-color .3s ease,border-color .3s ease}
+  @media(max-width:620px){section{padding:26px 22px}}
+  section>h2{font-family:var(--serif);font-size:29px;font-weight:700;letter-spacing:-.01em;
+    line-height:1.2;margin:0 0 4px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+  .sec-tag{font-family:var(--sans);font-size:11px;font-weight:700;color:var(--accent);
+    letter-spacing:.18em;text-transform:uppercase;display:block;margin-bottom:12px}
+  h3{font-family:var(--serif);font-size:21px;margin:34px 0 8px;font-weight:700;letter-spacing:-.005em}
+  h4{font-family:var(--sans);font-size:14px;margin:20px 0 6px;font-weight:700;color:var(--ink);
+    letter-spacing:.01em}
+  p{margin:13px 0}
+  ul,ol{margin:13px 0;padding-left:24px}
+  li{margin:7px 0}
+  li::marker{color:var(--accent-2)}
+  strong{font-weight:700;color:var(--ink)}
+  code{font-family:var(--mono);font-size:.82em;background:var(--surface-2);color:var(--accent);
+    padding:1.5px 6px;border-radius:5px;border:1px solid var(--line)}
+
+  /* drop cap for the opening paragraph */
+  section#tldr > p:first-of-type::first-letter{
+    font-family:var(--serif);float:left;font-size:3.6em;line-height:.78;
+    padding:7px 11px 2px 0;color:var(--accent);font-weight:700}
+
+  /* ---------- code blocks ---------- */
+  pre{background:var(--code-bg);color:var(--code-ink);border-radius:8px;padding:16px 18px;overflow:auto;
+    font-family:var(--mono);font-size:13px;line-height:1.65;margin:16px 0;border:1px solid rgba(0,0,0,.25)}
+  pre code{background:none;border:none;color:inherit;padding:0;font-size:13px}
+  pre .c{color:var(--com);font-style:italic}
+  pre .k{color:var(--kw)} pre .s{color:var(--str)} pre .n{color:var(--num)}
+  pre .f{color:var(--fn)} pre .d{color:var(--code-dim)}
+  .filehdr{font-family:var(--mono);font-size:11px;color:var(--code-dim);background:#211d17;
+    border:1px solid rgba(0,0,0,.25);border-bottom:none;border-radius:8px 8px 0 0;
+    padding:8px 14px;margin:16px 0 0;letter-spacing:.02em;text-transform:none}
+  .filehdr + pre{border-radius:0 0 8px 8px;margin-top:0}
+
+  /* ---------- callouts (editorial sidebars) ---------- */
+  .call{border-left:3px solid var(--info);background:var(--info-soft);
+    padding:14px 18px;border-radius:0 var(--radius) var(--radius) 0;margin:18px 0;font-size:16px}
+  .call .t{font-family:var(--sans);font-weight:700;display:block;margin-bottom:4px;font-size:12px;
+    letter-spacing:.08em;text-transform:uppercase;color:var(--ink)}
+  .call.ok{border-color:var(--ok);background:var(--ok-soft)}
+  .call.warn{border-color:var(--warn);background:var(--warn-soft)}
+  .call.danger{border-color:var(--danger);background:var(--danger-soft)}
+  .call.decision{border-color:var(--accent);background:var(--accent-soft)}
+  .call p{margin:7px 0}
+
+  /* ---------- tables ---------- */
+  table.t{width:100%;border-collapse:collapse;margin:18px 0;font-size:14.5px;font-family:var(--sans)}
+  table.t th,table.t td{text-align:left;padding:10px 13px;border-bottom:1px solid var(--line);vertical-align:top}
+  table.t th{font-weight:700;color:var(--ink-soft);font-size:11px;text-transform:uppercase;
+    letter-spacing:.07em;border-bottom:2px solid var(--line-strong);background:transparent}
+  table.t tr:last-child td{border-bottom:none}
+  table.t tbody tr:hover{background:var(--surface-2)}
+  .nowrap{white-space:nowrap}
+  td .mono,th .mono,.mono{font-family:var(--mono);font-size:12.5px}
+
+  /* ---------- badges ---------- */
+  .badge{display:inline-block;font-family:var(--sans);font-size:10.5px;font-weight:700;padding:2px 9px;
+    border-radius:999px;letter-spacing:.05em;text-transform:uppercase;line-height:1.6;white-space:nowrap}
+  .b-high{background:var(--ok-soft);color:var(--ok);border:1px solid var(--ok)}
+  .b-med{background:var(--warn-soft);color:var(--warn);border:1px solid var(--warn)}
+  .b-low{background:var(--danger-soft);color:var(--danger);border:1px solid var(--danger)}
+  .b-neutral{background:var(--surface-2);color:var(--muted);border:1px solid var(--line-strong)}
+
+  /* ---------- step flow ---------- */
+  .flow{display:flex;flex-direction:column;gap:0;margin:20px 0}
+  .step{display:grid;grid-template-columns:40px 1fr;gap:16px;position:relative;padding-bottom:18px}
+  .step:not(:last-child)::before{content:"";position:absolute;left:19px;top:36px;bottom:-2px;width:2px;background:var(--line-strong)}
+  .step .num{width:38px;height:38px;border-radius:50%;background:var(--accent);color:#fff;font-family:var(--sans);
+    display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;z-index:1}
+  .step .body{padding-top:4px}
+  .step .body b{display:block;font-size:16px;margin-bottom:2px;font-family:var(--serif)}
+  .step .meta{font-family:var(--mono);font-size:11.5px;color:var(--muted)}
+
+  /* ---------- latency bars ---------- */
+  .bars{margin:18px 0;font-family:var(--sans)}
+  .bar-row{display:grid;grid-template-columns:206px 1fr 64px;gap:12px;align-items:center;margin:9px 0;font-size:13px}
+  .bar-track{background:var(--surface-2);border-radius:5px;height:22px;overflow:hidden;border:1px solid var(--line)}
+  .bar-fill{height:100%;border-radius:5px 0 0 5px;display:flex;align-items:center;color:#fff;font-size:11px;font-weight:700;padding-left:9px}
+  .bar-lbl{font-weight:600;color:var(--ink-soft)}
+  .bar-val{font-family:var(--mono);font-size:12px;text-align:right;color:var(--ink-soft);font-weight:600}
+
+  /* ---------- cards ---------- */
+  .cards{display:grid;grid-template-columns:1fr 1fr;gap:15px;margin:18px 0}
+  @media(max-width:760px){.cards{grid-template-columns:1fr}}
+  .card{border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px;background:var(--surface-2)}
+  .card h4{margin:0 0 6px;font-size:14.5px;font-family:var(--serif);font-weight:700;color:var(--ink)}
+  .card.pos{border-top:3px solid var(--ok)}
+  .card.neg{border-top:3px solid var(--danger)}
+  .card p{margin:7px 0;font-size:15px}
+
+  .kicker{color:var(--muted);font-size:14px;margin-top:-2px}
+  hr.soft{border:none;border-top:1px solid var(--line);margin:28px 0}
+  .anchor-h{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+  .small{font-size:14px;color:var(--muted);font-style:italic}
+  .footnote{font-size:14px;color:var(--muted)}
+
+  /* ---------- toc ---------- */
+  .toc{position:sticky;top:18px;align-self:start;font-family:var(--sans);font-size:13.5px;
+    background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+    padding:20px 16px;box-shadow:var(--shadow);max-height:calc(100vh - 36px);overflow:auto}
+  .toc h4{margin:0 0 12px;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-family:var(--sans)}
+  .toc ol{list-style:none;margin:0;padding:0;counter-reset:toc}
+  .toc li{counter-increment:toc;margin:1px 0}
+  .toc a{display:block;color:var(--ink-soft);padding:5px 9px;border-radius:5px;line-height:1.35}
+  .toc a:hover{background:var(--accent-soft);color:var(--accent);text-decoration:none}
+  .toc a::before{content:counter(toc) ".";color:var(--accent-2);font-variant-numeric:tabular-nums;
+    margin-right:8px;font-weight:700}
+
+  /* ---------- svg diagram (theme-aware via classes) ---------- */
+  .diagram{width:100%;height:auto;margin:20px 0;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface-2)}
+  .diagram text{font-family:var(--sans);fill:var(--ink-soft)}
+  .diagram .lane{fill:var(--accent-soft);stroke:var(--line-strong)}
+  .diagram .lane-fire{fill:var(--danger-soft);stroke:var(--danger)}
+  .diagram .lane-db{fill:var(--ok-soft);stroke:var(--ok)}
+  .diagram .lane-txt{fill:var(--ink);font-weight:700}
+  .diagram .life{stroke:var(--line-strong)}
+  .diagram .msg{stroke:var(--ink-soft)}
+  .diagram .msg-fire{stroke:var(--danger)}
+  .diagram .msg-ok{stroke:var(--ok)}
+  .diagram .t-fire{fill:var(--danger)}
+  .diagram .t-ok{fill:var(--ok)}
+  .diagram .t-warn{fill:var(--warn)}
+  .diagram marker path{fill:var(--ink-soft)}
+  .legend{display:flex;flex-wrap:wrap;gap:16px;font-family:var(--sans);font-size:12.5px;color:var(--ink-soft);margin:10px 2px 0}
+  .legend span{display:inline-flex;align-items:center;gap:7px}
+  .legend i{width:13px;height:13px;border-radius:3px;display:inline-block}
+
+  footer{padding:30px 0 60px;color:var(--muted);font-size:13.5px;font-family:var(--sans)}
+  footer .wrap{border-top:2px solid var(--accent);padding-top:20px}
+  .src-list{font-size:15px}
+  .src-list li{margin:8px 0}
+</style>
+</head>
+<body>
+
+<button id="themeToggle" type="button" aria-label="Toggle light and dark theme">
+  <svg class="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+  <svg class="i-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2M12 20v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M2 12h2M20 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"/></svg>
+  <span class="lbl-dark">Dark</span>
+  <span class="lbl-light">Light</span>
+</button>
+
+<header class="hero">
+  <div class="wrap masthead">
+    <div class="rule-top"></div>
+    <p class="eyebrow">haus-rbac-api · engineering deep dive</p>
+    <h1>The Auth Hot Path: How RBAC Resolves Identity, Why Firebase Was the Bottleneck, and How the Service Is Built</h1>
+    <p class="lede">A from-first-principles walkthrough of the token&nbsp;→&nbsp;user&nbsp;→&nbsp;permission pipeline at the centre of <code>haus-rbac-api</code>, the design debate behind MCP-282, the low-level mechanisms involved, and a full architecture review with concrete improvements.</p>
+    <div class="meta-line">
+      <span>Thread <b>#mcp-eng · 2026-06-17</b></span>
+      <span>Ticket <b>MCP-282</b></span>
+      <span>Branch <b>zoeyhu/mcp-282</b></span>
+      <span>Decision <b>ADR-0014 · Accepted</b></span>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+<div class="grid">
+
+  <!-- ============ TOC ============ -->
+  <nav class="toc">
+    <h4>Contents</h4>
+    <ol>
+      <li><a href="#tldr">Executive summary</a></li>
+      <li><a href="#foundations">Foundations: authn vs authz</a></li>
+      <li><a href="#thread">The thread &amp; MCP-282</a></li>
+      <li><a href="#walkthrough">The auth hot path, step by step</a></li>
+      <li><a href="#mechanisms">Low-level mechanisms</a></li>
+      <li><a href="#cache">The cache decision (ADR-0014)</a></li>
+      <li><a href="#considerations">Design considerations &amp; tradeoffs</a></li>
+      <li><a href="#consumers">Downstream consumers</a></li>
+      <li><a href="#issues">Common issues &amp; strategies</a></li>
+      <li><a href="#review">Architecture review</a></li>
+      <li><a href="#improve">Recommended improvements</a></li>
+      <li><a href="#appendix">File map, glossary &amp; sources</a></li>
+    </ol>
+  </nav>
+
+  <!-- ============ MAIN ============ -->
+  <main>
+
+  <!-- 1. TLDR -->
+  <section id="tldr">
+    <span class="sec-tag">Start here</span>
+    <h2>Executive summary</h2>
+    <p><code>haus-rbac-api</code> is Haus's central authorization service. Every other service that needs to answer <em>"can user X do action A in org O?"</em> calls it over HTTP. The hot path is <code>POST /permissions/check</code>.</p>
+    <p>While load-testing during <a href="https://linear.app/hausanalytics/issue/MCP-180">MCP-180</a>, Cloud Trace showed the dominant request cost was <strong>not</strong> the databases — it was a single synchronous Firebase <code>get_user</code> network round-trip to Identity Toolkit, on <em>every</em> authenticated request:</p>
+
+    <div class="bars">
+      <div class="bar-row"><span class="bar-lbl">Local JWT verify</span>
+        <div class="bar-track"><div class="bar-fill" style="width:2%;background:var(--ok)"></div></div>
+        <span class="bar-val">~2 ms</span></div>
+      <div class="bar-row"><span class="bar-lbl">Public-key fetch (cached)</span>
+        <div class="bar-track"><div class="bar-fill" style="width:1%;background:var(--ok)"></div></div>
+        <span class="bar-val">~0.7 ms</span></div>
+      <div class="bar-row"><span class="bar-lbl">Firebase <span class="mono">get_user</span> (network)</span>
+        <div class="bar-track"><div class="bar-fill" style="width:100%;background:var(--danger)">dominant span</div></div>
+        <span class="bar-val">~104 ms</span></div>
+      <div class="bar-row"><span class="bar-lbl">DB query spans</span>
+        <div class="bar-track"><div class="bar-fill" style="width:0.5%;background:var(--muted)"></div></div>
+        <span class="bar-val">none</span></div>
+    </div>
+    <p class="small">Trace from <code>POST /permissions/check</code> on <code>haus-development</code> (image <code>953aabb</code>). Dev numbers — JP flagged in-thread that prod will differ; the shape (one network hop dominating) is the point.</p>
+
+    <div class="call decision">
+      <span class="t">The decision that was reached</span>
+      <p>The team debated three options. Removing the call was rejected because it would force every consumer to become Firebase-aware (breaking the vendor-agnostic design). Shortening the token TTL is impossible (Firebase hard-codes 60&nbsp;min). The chosen path — implemented on the <code>zoeyhu/mcp-282</code> branch and documented in <b>ADR-0014</b> — is a <strong>short-TTL, in-process, per-uid cache of the user record</strong> (default 30&nbsp;s, <code>0</code> disables). The token is still fully verified on every request; only the <code>get_user</code> <em>network call</em> is cached. Revocation/disabled enforcement still runs every request and becomes at most <em>TTL-stale</em>.</p>
+    </div>
+
+    <p>The rest of this document explains every term in that summary from scratch, traces the code path end-to-end, reviews the broader architecture, and lists the issues and improvements that fall out of it.</p>
+  </section>
+
+  <!-- 2. FOUNDATIONS -->
+  <section id="foundations">
+    <span class="sec-tag">No prior knowledge assumed</span>
+    <h2>Foundations: authentication vs authorization</h2>
+    <p>The entire debate hinges on a distinction that is easy to blur, so it's worth nailing down precisely.</p>
+
+    <div class="cards">
+      <div class="card">
+        <h4>Authentication (authn) — "who are you?"</h4>
+        <p>Proving identity. For Haus this means a <strong>Firebase ID token</strong> (a JWT): a signed, time-limited credential issued by Firebase Authentication after a user logs in. Verifying it answers <em>"is this a genuine, unexpired token for user U?"</em></p>
+      </div>
+      <div class="card">
+        <h4>Authorization (authz) — "what may you do?"</h4>
+        <p>Given a known identity, deciding whether that identity holds a specific permission in a specific scope. This is RBAC's actual job: walking <span class="mono">role&nbsp;→&nbsp;permission</span> bindings to answer <em>"does U have <span class="mono">experiments:read</span> in org <span class="mono">acme</span>?"</em></p>
+      </div>
+    </div>
+
+    <h3>What a Firebase ID token (JWT) actually contains</h3>
+    <p>A JWT is three base64 segments — header, payload (claims), signature. RBAC cares about these claims:</p>
+    <div class="filehdr">decoded ID token claims (conceptual)</div>
+<pre><code><span class="d">{</span>
+  <span class="s">"iss"</span>: <span class="s">"https://securetoken.google.com/&lt;project_id&gt;"</span>,  <span class="c">// issuer</span>
+  <span class="s">"aud"</span>: <span class="s">"&lt;project_id&gt;"</span>,                                <span class="c">// audience</span>
+  <span class="s">"sub"</span>/<span class="s">"uid"</span>: <span class="s">"abc123"</span>,                            <span class="c">// the user id</span>
+  <span class="s">"email"</span>: <span class="s">"zoey@hausanalytics.com"</span>,
+  <span class="s">"auth_time"</span>: <span class="n">1781700000</span>,    <span class="c">// when the user actually logged in</span>
+  <span class="s">"iat"</span>: <span class="n">1781707000</span>, <span class="s">"exp"</span>: <span class="n">1781710600</span>, <span class="c">// issued-at / expiry (≤ 1h apart)</span>
+  <span class="s">"custom_claims"</span>: <span class="d">{</span> <span class="s">"roles"</span>: [...], <span class="s">"role_admin"</span>: <span class="k">false</span> <span class="d">}</span>
+<span class="d">}</span></code></pre>
+    <p>The crucial insight that drove the ticket: <strong>uid, email, and custom claims are already inside the verified token.</strong> You do not need a network call to learn who the user is. The network call (<code>get_user</code>) exists only to fetch two pieces of <em>server-side, live</em> state that the token cannot carry:</p>
+    <ul>
+      <li><strong><code>disabled</code></strong> — whether an admin has disabled the account since the token was minted.</li>
+      <li><strong><code>tokens_valid_after_timestamp</code></strong> — a server-side "revoke everything issued before this instant" marker, set on a "log out everywhere" / forced revocation.</li>
+    </ul>
+
+    <div class="call">
+      <span class="t">Why "revocation is an authn concern" matters here</span>
+      <p>JP's framing in the thread: checking whether a token was revoked from another session is an <em>authentication</em> question (is this credential still valid?), not an <em>authorization</em> one (what may this user do?). RBAC took on that authn responsibility deliberately — so that consumers wouldn't have to. That deliberate choice is exactly what makes removing it expensive.</p>
+    </div>
+  </section>
+
+  <!-- 3. THREAD -->
+  <section id="thread">
+    <span class="sec-tag">The conversation</span>
+    <h2>The thread &amp; MCP-282</h2>
+    <p>The <a href="https://hausanalytics.slack.com/archives/C0B3SV30HP0/p1781707660797919">#mcp-eng thread (2026-06-17)</a> opened with JP observing that the extra Firebase API call is responsible for ~60–70% of RBAC response time and is doing something that "feels like" an authn concern bolted onto an authz service. The discussion (JP, Christian, Martin, Zoey) converged through these beats:</p>
+    <ul>
+      <li><strong>Is it RBAC's job?</strong> Consensus: token-revocation checking is an authn concern. But RBAC took it on <em>on purpose</em> so consumers stay vendor-agnostic.</li>
+      <li><strong>Who relies on it?</strong> Front-end consumers (ferry, internal tools) do their own authn; back-end consumers only do authz via RBAC. So if RBAC stops checking revocation, the BEs would have to start — pushing Firebase-awareness onto them.</li>
+      <li><strong>Can we just shorten the token?</strong> No — Firebase hard-codes ID-token lifetime at 60&nbsp;min; not configurable. ("Another reason to move away from Firebase.")</li>
+      <li><strong>Latency anatomy:</strong> ~50–70&nbsp;ms direct call (of which ~30–50&nbsp;ms is the Firebase check) + ~100&nbsp;ms added by the Cloudflare proxy DNS hop.</li>
+      <li><strong>Landing point:</strong> Zoey leaned toward <em>keeping</em> the check and using a <strong>short-TTL cache</strong> — pushing Firebase-awareness onto consumers would break the vendor-agnostic design that is the point of RBAC. JP took the <em>internal network gateway</em> work (to remove the ~100&nbsp;ms CF hop), which also helps canary-rollout traffic.</li>
+    </ul>
+
+    <h3>The three options, as framed in MCP-282</h3>
+    <table class="t">
+      <thead><tr><th>Option</th><th>What it does</th><th>Staleness of revoke/disabled</th><th>Verdict</th></tr></thead>
+      <tbody>
+        <tr><td><b>A — Short-TTL cache</b></td><td>Cache the per-uid <code>get_user</code> result for ~30–60&nbsp;s. Bursty/repeat callers skip the network call.</td><td>≤ TTL (per pod)</td><td><span class="badge b-high">Chosen</span> Low risk; ~100&nbsp;ms saved for hot callers; consumers unchanged.</td></tr>
+        <tr><td><b>B — Build from claims, drop <span class="mono">get_user</span></b></td><td>Construct the user purely from JWT claims; trust the ≤1&nbsp;h TTL for revocation.</td><td>≤ 1&nbsp;h</td><td><span class="badge b-low">Rejected</span> Forces every consumer to become Firebase-aware for "true logout"; breaks vendor-agnosticism.</td></tr>
+        <tr><td><b>C — Hybrid</b></td><td>Build from claims on the hot path; move disabled/revoked off-path (async/cached refresh).</td><td>varies</td><td><span class="badge b-neutral">Not taken</span> More moving parts than A for similar benefit at the chosen TTL.</td></tr>
+      </tbody>
+    </table>
+    <p class="small">MCP-282 also flagged a documentation contradiction: <code>API_SPEC.md</code> said "Firebase 1-hour TTL is trusted; no active revocation is performed," while the code <em>did</em> perform per-request revocation. The work reconciles the spec to the code (active, TTL-bounded enforcement).</p>
+  </section>
+
+  <!-- 4. WALKTHROUGH -->
+  <section id="walkthrough">
+    <span class="sec-tag">Systematic walkthrough</span>
+    <h2>The auth hot path, step by step</h2>
+    <p>Here is exactly what happens when a consumer calls <code>POST /permissions/check</code>, tracing through the real files. The two distinct "front doors" share the same identity-resolution core:</p>
+
+    <table class="t">
+      <thead><tr><th>Entry style</th><th>Used by</th><th>How the token arrives</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">POST /permissions/check</td><td>Service-to-service authz (the six consumers)</td><td>In the JSON body (<span class="mono">{token, org, permission, adapter}</span>). No <code>Authorization</code> header; the route is intentionally public.</td></tr>
+        <tr><td class="mono">require_permission(...) / require_authenticated_user() / require_staff()</td><td>All other routes (<span class="mono">/orgs/me</span>, <span class="mono">/roles</span>, <span class="mono">/access/*</span> …)</td><td>As a <code>Authorization: Bearer &lt;token&gt;</code> header via <code>get_bearer_token()</code>.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>The call chain</h3>
+    <div class="flow">
+      <div class="step"><div class="num">1</div><div class="body"><b>Token extraction &amp; DB context</b><span class="meta">api/dependencies.py → _resolve_auth() / route handler</span>
+        <p>The dependency sets the request-scoped DB context (pushes the pooled MySQL + Postgres handles into a <code>ContextVar</code>) and pulls the Bearer token. A <code>finally:</code> guarantees the thread's pooled connections are released on the <em>same</em> thread that checked them out.</p></div></div>
+
+      <div class="step"><div class="num">2</div><div class="body"><b>Resolve user from token</b><span class="meta">get_user_from_token() → User.find_by_token() → user_sources.get_source("firebase")</span>
+        <p>A typed <code>TokenAuthResult</code> captures the outcome class: <span class="mono">missing | invalid_adapter | invalid_token | disabled | revoked</span>. The <code>User</code> model holds no DB profile — identity comes entirely from the user-source adapter. The adapter is looked up in a registry (default <code>"firebase"</code>).</p></div></div>
+
+      <div class="step"><div class="num">3</div><div class="body"><b>Verify the JWT locally</b><span class="meta">FirebaseUserSource.find_by_token() → firebase_auth.verify_id_token()  ·  span rbac.firebase.verify_id_token (~2ms)</span>
+        <p>Signature + expiry + issuer/audience are checked against Google's public keys (cached in-process). A <strong>second, explicit issuer/audience pin</strong> (ADR-0003 §1) rejects tokens from any other Firebase project — defense-in-depth against an Admin-SDK misconfiguration after the migration. No network hop here.</p></div></div>
+
+      <div class="step"><div class="num">4</div><div class="body"><b>Resolve the user record — cache, then network on miss</b><span class="meta">_user_cache.get(uid) → on miss: firebase_auth.get_user(uid)  ·  span rbac.firebase.get_user (~104ms)</span>
+        <p>This is the step MCP-282 is about. The per-uid <code>TtlCache</code> is consulted first. On a hit, the ~100&nbsp;ms Identity Toolkit round-trip is skipped entirely (the <code>get_user</code> span is simply absent from the trace). On a miss, <code>get_user</code> runs, the record is mapped to a dict, and the result is cached.</p></div></div>
+
+      <div class="step"><div class="num">5</div><div class="body"><b>Enforce revocation &amp; disabled — every request</b><span class="meta">auth_time vs tokens_valid_after  ·  raises RevokedTokenError / DisabledAccountError</span>
+        <p>Crucially, enforcement runs on hits <em>and</em> misses. The fresh per-token <code>auth_time</code> is compared against the (possibly cached) <code>tokens_valid_after_timestamp</code>; the cached <code>disabled</code> flag is checked. A revoked or disabled account is rejected within at most the cache TTL.</p></div></div>
+
+      <div class="step"><div class="num">6</div><div class="body"><b>Authorization: the actual permission check</b><span class="meta">services/permission.py → check_permission()</span>
+        <p>Now RBAC does its real job. For an org-scoped check: <span class="mono">(a)</span> MySQL resolves the org and confirms it's active; <span class="mono">(b)</span> MySQL confirms the user is a member (<code>user_organization</code>); <span class="mono">(c)</span> Postgres walks <span class="mono">role_binding → role → role_permission → permission</span>. Global-only checks skip the MySQL org lookups.</p></div></div>
+
+      <div class="step"><div class="num">7</div><div class="body"><b>Respond — with deliberate status semantics</b><span class="meta">200 / 422 / 503</span>
+        <p><code>200 {"allowed": true|false}</code> for every real decision (status-code parity kills the enumeration side-channel, ADR-0003 §2). <code>422</code> for a malformed <code>permission</code> string before any DB work. <code>503 {"detail":"&lt;dep&gt; unavailable"}</code> when Firebase/MySQL/Postgres is unreachable, so callers can distinguish "denied" from "couldn't check" and retry (ADR-0007).</p></div></div>
+    </div>
+
+    <h3>The same path, drawn out</h3>
+    <svg class="diagram" viewBox="0 0 900 360" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Auth hot path sequence diagram">
+      <defs>
+        <marker id="arrow" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="strokeWidth">
+          <path d="M0,0 L7,3 L0,6 Z"/>
+        </marker>
+      </defs>
+      <!-- lanes -->
+      <g font-size="12">
+        <rect class="lane"      x="20"  y="20" width="120" height="34" rx="7"/>
+        <text class="lane-txt" x="80"  y="41" text-anchor="middle">Consumer</text>
+        <rect class="lane"      x="180" y="20" width="150" height="34" rx="7"/>
+        <text class="lane-txt" x="255" y="41" text-anchor="middle">RBAC web pod</text>
+        <rect class="lane-fire" x="370" y="20" width="150" height="34" rx="7"/>
+        <text class="lane-txt" x="445" y="41" text-anchor="middle">Firebase</text>
+        <rect class="lane-db"   x="560" y="20" width="140" height="34" rx="7"/>
+        <text class="lane-txt" x="630" y="41" text-anchor="middle">MySQL (Harbor)</text>
+        <rect class="lane-db"   x="740" y="20" width="140" height="34" rx="7"/>
+        <text class="lane-txt" x="810" y="41" text-anchor="middle">Postgres (RBAC)</text>
+      </g>
+      <!-- lifelines -->
+      <g class="life" stroke-dasharray="3 4">
+        <line x1="80"  y1="54" x2="80"  y2="340"/>
+        <line x1="255" y1="54" x2="255" y2="340"/>
+        <line x1="445" y1="54" x2="445" y2="340"/>
+        <line x1="630" y1="54" x2="630" y2="340"/>
+        <line x1="810" y1="54" x2="810" y2="340"/>
+      </g>
+      <g font-size="11.5">
+        <line class="msg" x1="80" y1="78" x2="253" y2="78" marker-end="url(#arrow)"/>
+        <text x="86" y="73">POST /permissions/check {token, org, permission}</text>
+
+        <text class="t-ok" x="262" y="103">verify_id_token() — local, ~2 ms ✓</text>
+
+        <line class="msg-fire" x1="255" y1="138" x2="443" y2="138" marker-end="url(#arrow)"/>
+        <text class="t-fire" x="262" y="133">get_user(uid) — only on cache miss · ~104 ms</text>
+        <line class="msg-fire" x1="443" y1="160" x2="257" y2="160" stroke-dasharray="4 3" marker-end="url(#arrow)"/>
+        <text class="t-fire" x="300" y="175">disabled, tokens_valid_after</text>
+
+        <text class="t-warn" x="262" y="197">enforce revoke/disabled (every request)</text>
+
+        <line class="msg" x1="255" y1="230" x2="628" y2="230" marker-end="url(#arrow)"/>
+        <text x="320" y="225">org active? + membership?</text>
+
+        <line class="msg" x1="255" y1="266" x2="808" y2="266" marker-end="url(#arrow)"/>
+        <text x="330" y="261">role_binding → permission?</text>
+
+        <line class="msg-ok" x1="253" y1="312" x2="80" y2="312" marker-end="url(#arrow)"/>
+        <text class="t-ok" x="86" y="307">200 {"allowed": true|false}  ·  422 malformed  ·  503 outage</text>
+      </g>
+    </svg>
+    <div class="legend">
+      <span><i style="background:var(--ok)"></i>local / fast</span>
+      <span><i style="background:var(--danger)"></i>Firebase network hop (the MCP-282 target)</span>
+      <span><i style="background:var(--ink-soft)"></i>DB query</span>
+    </div>
+  </section>
+
+  <!-- 5. MECHANISMS -->
+  <section id="mechanisms">
+    <span class="sec-tag">How it works under the hood</span>
+    <h2>Low-level mechanisms</h2>
+
+    <h3>5.1 — The user-source adapter pattern</h3>
+    <p>RBAC never imports Firebase directly into its routes. Instead it defines a <code>UserSource</code> <em>Protocol</em> (a structural interface) and resolves a concrete adapter from a registry. This is the seam that makes the service "auth-vendor agnostic."</p>
+    <div class="filehdr">haus_rbac/user_sources/base.py — the contract</div>
+<pre><code><span class="k">class</span> <span class="f">UserSource</span>(Protocol):
+    <span class="k">def</span> <span class="f">find_by_token</span>(self, token: str) -> dict | <span class="k">None</span>: ...   <span class="c"># verify + return record, or None</span>
+    <span class="k">def</span> <span class="f">find_by_ids</span>(self, user_ids: list[str]) -> list[dict]: ...
+    <span class="k">def</span> <span class="f">find_by_email</span>(self, email: str) -> dict | <span class="k">None</span>: ...
+    <span class="k">def</span> <span class="f">find_by_email_domain</span>(self, domain: str) -> list[dict]: ...
+    <span class="k">def</span> <span class="f">provision_user</span>(self, record: dict) -> dict: ...</code></pre>
+    <p>The registry (<code>user_sources/__init__.py</code>) registers Firebase only when <code>FIREBASE_GCP_PROJECT</code> is set, and <code>get_source(name=None)</code> defaults to <code>"firebase"</code>. To swap providers you implement the Protocol in a new adapter and register it — <strong>no route or service code changes.</strong> That is the whole point, and it's why option B (pushing Firebase-awareness to consumers) was considered a regression rather than a refactor.</p>
+
+    <h3>5.2 — Two Firebase operations, very different costs</h3>
+    <table class="t">
+      <thead><tr><th>Operation</th><th>What it is</th><th>Network?</th><th>Cost</th><th>Cacheable?</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">verify_id_token()</td><td>Cryptographic verification of the JWT signature + claims against cached public keys.</td><td>No (keys cached)</td><td>~2 ms</td><td>Runs every request — no need.</td></tr>
+        <tr><td class="mono">get_user(uid)</td><td>REST call to <code>identitytoolkit.googleapis.com</code> to fetch the live server-side user record.</td><td><b>Yes</b> — SDK does <em>not</em> cache it</td><td>~104 ms</td><td><b>Yes — the MCP-282 change.</b></td></tr>
+      </tbody>
+    </table>
+    <p>The mapped record dict carries both fields enforcement needs (<code>disabled</code>, <code>tokens_valid_after_timestamp</code>), so caching that one dict serves the returned user <em>and</em> both enforcement checks from a single cached value.</p>
+
+    <h3>5.3 — The revocation check, precisely</h3>
+    <div class="filehdr">haus_rbac/user_sources/adapters/firebase.py — enforcement (runs on hit and miss)</div>
+<pre><code><span class="c"># auth_time = when the user actually logged in (from THIS request's token)</span>
+<span class="c"># tokens_valid_after = server-side "everything before this is revoked" marker</span>
+auth_time = decoded.get(<span class="s">"auth_time"</span>)
+tokens_valid_after = record.get(<span class="s">"tokens_valid_after_timestamp"</span>) <span class="k">or</span> <span class="n">0</span>
+<span class="k">if</span> auth_time <span class="k">is</span> <span class="k">None</span> <span class="k">or</span> auth_time * <span class="n">1000</span> &lt; tokens_valid_after:
+    <span class="k">raise</span> RevokedTokenError(uid)
+<span class="k">if</span> record.get(<span class="s">"disabled"</span>):
+    <span class="k">raise</span> DisabledAccountError(uid)</code></pre>
+    <p>Two subtle, deliberate properties: a <em>missing</em> <code>auth_time</code> is treated as revoked (fail-closed), and because <code>auth_time</code> comes from the live token while <code>tokens_valid_after</code> may be cached, a "log out everywhere" that bumps <code>tokens_valid_after</code> is only invisible for as long as the stale cache entry lives — i.e. ≤ TTL.</p>
+
+    <h3>5.4 — The TtlCache itself</h3>
+    <p>The cache is intentionally tiny and boring (see <code>user_sources/cache.py</code>). Its properties are load-bearing for correctness:</p>
+    <div class="cards">
+      <div class="card"><h4>In-process, per-pod</h4><p>A Python dict guarded by a <code>threading.Lock</code>. Not Redis — a shared cache would re-introduce the very network hop we're removing. Each pod caches independently; the staleness bound holds on every pod.</p></div>
+      <div class="card"><h4>Thread-safe</h4><p>FastAPI runs sync routes on a thread pool, so every <code>get</code>/<code>set</code>/evict is under the lock.</p></div>
+      <div class="card"><h4>Lazy expiry + size ceiling</h4><p>Entries store a monotonic <code>expires_at</code>; an expired entry is dropped on read so a stale value is never served. A 10,000-entry ceiling evicts expired-first, then oldest-by-insertion, so a flood of distinct uids can't grow memory unbounded.</p></div>
+      <div class="card"><h4>Kill-switch</h4><p><code>FIREBASE_USER_CACHE_TTL_SECONDS=0</code> makes <code>enabled</code> false: <code>get</code> always misses and <code>set</code> is a no-op, restoring per-request enforcement instantly with <em>no deploy</em>.</p></div>
+    </div>
+
+    <h3>5.5 — Supporting runtime machinery</h3>
+    <ul>
+      <li><strong>ContextVar DB context.</strong> Pooled MySQL + Postgres handles live on <code>app.state</code> and are pushed into a <code>ContextVar</code> per request, so service/model calls don't pass connection objects around and can't accidentally hit the wrong DB.</li>
+      <li><strong>Connection pooling (playhouse.pool).</strong> Warm connections are reused instead of reopened per request (a cold Cloud SQL connect was a prior latency driver). The sizing invariant: each pool's <code>max_connections ≥ WEB_THREADPOOL_LIMIT</code>, or a burst exhausts the pool (the 2026-06-12 incident).</li>
+      <li><strong>Same-thread release.</strong> peewee's pooled state is thread-local, so connections must be released on the thread that checked them out — every auth dependency does this in a <code>finally:</code>.</li>
+      <li><strong>OpenTelemetry spans.</strong> <code>rbac.firebase.verify_id_token</code> and <code>rbac.firebase.get_user</code> are manual spans; the <em>absence</em> of the <code>get_user</code> span in a trace is the signal that the cache served the request.</li>
+    </ul>
+  </section>
+
+  <!-- 6. CACHE DECISION -->
+  <section id="cache">
+    <span class="sec-tag">The implemented solution</span>
+    <h2>The cache decision (ADR-0014)</h2>
+    <p>ADR-0014 ("cache the Firebase user record on the auth hot path", Accepted 2026-06-17, driver Zoey Hu) records the decision. Its five "load-bearing properties" are worth internalizing because they're what make a cache on an <em>auth</em> path defensible:</p>
+    <ol>
+      <li><strong>The token is fully re-validated on every request.</strong> Only the <code>get_user</code> network call is cached; the cache key is the uid, not the token. Signature/expiry/issuer-audience always run.</li>
+      <li><strong>Enforcement runs on every request, including hits.</strong> So a revoked/disabled account is rejected within ≤ TTL, always within the token's ≤1&nbsp;h life.</li>
+      <li><strong>In-process, not Redis.</strong> Removing a network hop with a cache that adds a network hop would be self-defeating.</li>
+      <li><strong>Only successful lookups are cached.</strong> Firebase-unavailable exceptions still propagate for ADR-0007 <code>503</code> handling and are never cached, so a transient outage retries next request rather than getting pinned.</li>
+      <li><strong>Disabled records are cached too</strong> — they keep denying without re-hitting Firebase; a re-enable becomes visible within the TTL. Symmetric with the revocation bound.</li>
+    </ol>
+
+    <div class="call ok">
+      <span class="t">Net effect</span>
+      <p>Warm/bursty callers drop ~100&nbsp;ms (down to local-verify + DB cost). The revoked/disabled enforcement window widens from ~0 to ≤ TTL <em>per pod</em> — at the default 30&nbsp;s, far tighter than the ≤1&nbsp;h window that fully removing the call (option B) would have imposed, and consumers stay Firebase-unaware. No new dependency, no schema change, no consumer change.</p>
+    </div>
+    <p class="small">Status note: this lives on branch <code>zoeyhu/mcp-282</code>. The code, ADR-0014, and the reconciled <code>API_SPEC.md</code> wording are present there; security sign-off on the chosen TTL is an explicit acceptance criterion still open in the ticket.</p>
+  </section>
+
+  <!-- 7. CONSIDERATIONS -->
+  <section id="considerations">
+    <span class="sec-tag">Why it's built this way</span>
+    <h2>Design considerations &amp; tradeoffs</h2>
+
+    <h3>The vendor-agnostic boundary is the central design value</h3>
+    <p>RBAC deliberately absorbed an authn responsibility (revocation/disabled enforcement) so that the ~6 back-end consumers can be pure authz callers that know nothing about Firebase. Every option in the thread was judged primarily against this boundary, not against raw latency. That's why a 100&nbsp;ms win (option B) lost to a 100&nbsp;ms win that preserves the boundary (option A).</p>
+
+    <h3>The latency budget has two separable parts</h3>
+    <div class="bars">
+      <div class="bar-row"><span class="bar-lbl">RBAC direct (incl. Firebase)</span>
+        <div class="bar-track"><div class="bar-fill" style="width:40%;background:var(--brand)">50–70 ms</div></div>
+        <span class="bar-val">in-app</span></div>
+      <div class="bar-row"><span class="bar-lbl">Cloudflare proxy DNS hop</span>
+        <div class="bar-track"><div class="bar-fill" style="width:60%;background:var(--brand-2)">~100 ms</div></div>
+        <span class="bar-val">network</span></div>
+    </div>
+    <p>ADR-0014 attacks the first part (the in-app Firebase span). The ~100&nbsp;ms Cloudflare hop is a <em>separate</em> problem JP picked up: an <strong>internal network gateway</strong> so internal callers bypass the public <code>rbac.haus.io</code> CF path. These are complementary — the cache helps every caller; the gateway helps internal callers and also the canary-rollout traffic (related: MCP-283, parameterize web workers + per-env resources for bursts).</p>
+
+    <h3>Choosing the TTL is a security-posture dial</h3>
+    <table class="t">
+      <thead><tr><th>TTL</th><th>Hot-path savings</th><th>Max revoke/disabled staleness</th><th>When appropriate</th></tr></thead>
+      <tbody>
+        <tr><td><code>0</code></td><td>None (every request hits Firebase)</td><td>~0</td><td>Kill-switch / rollback; incident requiring instant revocation.</td></tr>
+        <tr><td><code>30 s</code> (default)</td><td>High for bursty callers</td><td>≤ 30 s/pod</td><td>Normal operation — the chosen balance.</td></tr>
+        <tr><td><code>60 s+</code></td><td>Higher</td><td>≤ 60 s+/pod</td><td>If traffic is very bursty and security review accepts the wider window.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Why the <code>/permissions/check</code> endpoint is public — and how that's contained</h3>
+    <p>An intentional ADR-0003 decision: the endpoint must be reachable by any consumer from anywhere, and adding caller authentication across six in-flight consumers was judged too expensive to gate on. The endpoint stays public, hardened with in-process defense-in-depth:</p>
+    <ul>
+      <li><strong>Issuer/audience pin</strong> — rejects tokens from any other Firebase project (catches Admin-SDK misconfig post-migration).</li>
+      <li><strong>Status-code parity on deny</strong> — every deny returns <code>200 {"allowed": false}</code>, so a probe can't distinguish "bad token" from "valid token, no permission" (no enumeration oracle, no token-liveness oracle).</li>
+      <li><strong>Per-subject rate limit</strong> — 60 checks/min/uid via a Redis <code>permcheck:*</code> counter; over-limit returns a normal deny. Redis down → fail-open (no request blocked).</li>
+      <li><strong>422 on malformed permission</strong> — a regex gate (<code>^[a-z][a-z0-9_]*:[a-z][a-z0-9_]*$</code>, ≤128 chars) rejects junk before any DB work.</li>
+      <li><strong>4 MB body cap</strong> + <strong>per-call audit log</strong> — bound memory on an unauthenticated endpoint and make abuse visible.</li>
+    </ul>
+
+    <h3>The deliberate two-database split</h3>
+    <p>User/org ground truth stays in the legacy <strong>MySQL</strong> (Harbor-owned, read-only here) where the rest of the platform already reads/writes it; RBAC-owned state (roles, permissions, bindings, the Access Center tables) lives in a dedicated <strong>Postgres</strong> versioned with dbmate. This avoided a large data migration and kept the rollout blast radius narrow — at the cost of coupling to a database RBAC doesn't own (see issues below).</p>
+  </section>
+
+  <!-- 8. CONSUMERS -->
+  <section id="consumers">
+    <span class="sec-tag">Context from downstream</span>
+    <h2>Downstream consumers: how RBAC is actually called</h2>
+    <p>The two MCP services confirm the contract and illustrate why the vendor-agnostic boundary matters. Both forward a <em>user</em> Firebase ID token to RBAC; neither implements RBAC's authz logic itself.</p>
+
+    <h3>haus-mcp-internal — the explicit client</h3>
+    <p><code>src/haus_mcp/rbac.py</code> is a direct, readable client. It documents the contract verbatim and treats <code>400/401/403</code> as denial:</p>
+    <div class="filehdr">haus-mcp-internal/src/haus_mcp/rbac.py — the call</div>
+<pre><code>response = <span class="k">await</span> rbac_client.post(
+    <span class="s">"/permissions/check"</span>,
+    json={<span class="s">"token"</span>: firebase_token, <span class="s">"org"</span>: org_name_as_key,
+          <span class="s">"permission"</span>: permission, <span class="s">"adapter"</span>: <span class="s">"firebase"</span>},
+    timeout=timeout)
+response.raise_for_status()
+<span class="c"># 400/401/403 → PermissionDenied; data["allowed"] gates the tool</span></code></pre>
+    <p>Two hardening details worth noting (both from prior security scans):</p>
+    <ul>
+      <li><strong>Fail-secure when misconfigured.</strong> If the RBAC client is <code>None</code> in a non-development environment, the call is <em>denied</em> — a prior bug let an empty <code>rbac_service_url</code> silently authorize every employee.</li>
+      <li><strong>Anti-retry denial wording.</strong> The denial message explicitly tells the LLM not to retry — a confused agent previously cycled tools against a forbidden org, treating denial as transient (ENA-109).</li>
+    </ul>
+
+    <h3>haus-mcp — the same contract behind a Port</h3>
+    <p><code>haus-mcp</code> uses a hexagonal architecture: tools depend on an <code>RbacPort</code> Protocol; the HTTP <code>RbacClient</code> is the only adapter, and an in-memory fake satisfies the same Protocol in tests. It also reveals the <em>other</em> layer of the token story.</p>
+    <div class="call">
+      <span class="t">A second token cache lives in the consumer</span>
+      <p>Because MCP clients (LLMs) authenticate via stored OAuth refresh tokens rather than a live browser session, <code>haus-mcp</code> mints a <em>fresh</em> Firebase ID token per downstream call via <code>FirebaseIdTokenForwarder</code>, and caches that ID token in <strong>Redis for 50&nbsp;min</strong> (kept under Firebase's 60&nbsp;min lifetime). On <code>/oauth/revoke</code> it calls <code>invalidate()</code> to drop the cached token so a revoked session can't keep using it for up to 50&nbsp;min.</p>
+    </div>
+
+    <h3>The layered staleness picture</h3>
+    <p>Putting it together, a "true logout" has to propagate through up to three independent windows, which is the real-world version of Martin's "the calling service may not know until too late" concern:</p>
+    <table class="t">
+      <thead><tr><th>Layer</th><th>Mechanism</th><th>Staleness window</th></tr></thead>
+      <tbody>
+        <tr><td>Firebase ID token</td><td>Hard-coded token lifetime</td><td>≤ 60 min (not configurable)</td></tr>
+        <tr><td>haus-mcp forwarder</td><td>Redis ID-token cache + <code>invalidate()</code> on revoke</td><td>≤ 50 min (0 if revoke calls invalidate)</td></tr>
+        <tr><td>RBAC user-record cache</td><td>In-process <code>TtlCache</code> (ADR-0014)</td><td>≤ 30 s per pod</td></tr>
+      </tbody>
+    </table>
+    <p class="small">RBAC's new cache adds the smallest window of the three by a wide margin — which is part of why option A was defensible.</p>
+  </section>
+
+  <!-- 9. ISSUES -->
+  <section id="issues">
+    <span class="sec-tag">Operational reality</span>
+    <h2>Common issues &amp; strategies to address them</h2>
+    <p>This service has accumulated battle scars; the docs and ADRs name the incidents. Each is a generalizable lesson.</p>
+
+    <table class="t">
+      <thead><tr><th>Issue</th><th>Symptom</th><th>Root cause</th><th>Strategy in place</th></tr></thead>
+      <tbody>
+        <tr><td><b>Firebase as latency bottleneck</b></td><td>~100 ms/request, 60–70% of response time</td><td>Synchronous <code>get_user</code> on every request; SDK doesn't cache</td><td>ADR-0014 short-TTL per-uid cache; kill-switch via TTL=0</td></tr>
+        <tr><td><b>Connection-pool exhaustion</b> (2026-06-12)</td><td><code>MaxConnectionsExceeded</code> under burst</td><td>Pool <code>max_connections</code> &lt; thread-pool size; releases on wrong thread orphaned connections</td><td>Sizing invariant (pool ≥ <code>WEB_THREADPOOL_LIMIT</code>); same-thread release in <code>finally:</code></td></tr>
+        <tr><td><b>Harbor MySQL manual grants</b> (took <code>/orgs/me</code> down 2026-06-08)</td><td>Runtime <code>(1142) SELECT command denied</code> on a new table</td><td>Per-table <code>GRANT</code> lives only in MySQL, not Terraform; not caught by CI</td><td>Documented pre-merge checklist; grant on every instance/env before reading a new Harbor table</td></tr>
+        <tr><td><b>"Denied" vs "couldn't check"</b></td><td>Outages surfaced to users as "access denied"</td><td>Dependency exceptions became generic <code>500</code></td><td>ADR-0007: <code>503 {"detail":"&lt;dep&gt; unavailable"}</code> envelope across all user-path routes; unknown errors still <code>500</code></td></tr>
+        <tr><td><b>Redis stalls on stale Memorystore conn</b> (INFR-513)</td><td>Thread-pool exhaustion waiting on Redis</td><td>120 s socket timeout on rate-limit reads</td><td>Web pod uses 2 s socket timeout, no retry; rate-limit fails open</td></tr>
+        <tr><td><b>Worker CrashLoopBackOff</b></td><td>Pods restart on idle Redis TLS reaping</td><td>RQ exits when Redis connection drops</td><td>In-process reconnect supervisor; fork-safe DB reset per job</td></tr>
+        <tr><td><b>Permission/org enumeration</b></td><td>One JWT could probe the full permission/org map</td><td>Status-code side-channel + no rate limit</td><td>ADR-0003: status parity, 60/min rate limit, audit log, 404-over-403 oracle collapse</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- 10. REVIEW -->
+  <section id="review">
+    <span class="sec-tag">Assessment</span>
+    <h2>Architecture review</h2>
+
+    <h3>What's strong</h3>
+    <div class="cards">
+      <div class="card pos"><h4>Clean authn/authz seam</h4><p>The <code>UserSource</code> Protocol + registry genuinely isolates the vendor. Swapping Firebase is an adapter change, not a surgery.</p></div>
+      <div class="card pos"><h4>Decisions are written down</h4><p>14 ADRs, per-module <code>CLAUDE.md</code>s, an architecture doc, runbooks, and a pentest suite. The "why" survives turnover — rare and valuable.</p></div>
+      <div class="card pos"><h4>Thoughtful failure semantics</h4><p>Deny / couldn't-check / malformed are three distinct response classes; fail-open vs fail-closed choices are explicit (rate-limit open, missing <code>auth_time</code> closed).</p></div>
+      <div class="card pos"><h4>Security-first hot path</h4><p>Issuer/audience pin, enumeration-oracle collapse, body cap, audit logging, and a real pentest harness on the public endpoint.</p></div>
+    </div>
+
+    <h3>Potential issues — high level</h3>
+    <ul>
+      <li><strong>Per-pod cache inconsistency.</strong> Each pod's cache is independent, so the <em>effective</em> revocation window is "≤ TTL on the pod that happens to serve the request." With N pods and load-balancing, a revoked user may be denied by one pod and (briefly) allowed by another until all entries expire. Acceptable at 30 s, but it should be stated as the actual guarantee, not "≤ TTL globally."</li>
+      <li><strong>Synchronous HTTP authz is a shared hot path.</strong> Central authorization over HTTP is a single source of truth and a single chokepoint; the architecture doc itself flags "revisit if the web pod becomes a bottleneck." The Firebase call was the first ceiling; the next is connection/thread capacity under canary bursts (hence MCP-283).</li>
+      <li><strong>Coupling to a database RBAC doesn't own.</strong> The Harbor MySQL dependency brings manual <code>GRANT</code>s that fail only at runtime and can't be enforced in CI — a recurring foot-gun and an availability dependency on another team's instance.</li>
+      <li><strong>No active revocation signal.</strong> Revocation is entirely pull-based (poll Firebase). There's no push/webhook path, so the floor on staleness is fundamentally Firebase's, and "instant logout" isn't achievable without either polling every request (TTL=0) or a new mechanism.</li>
+      <li><strong>The ~100 ms Cloudflare hop dominates once Firebase is cached.</strong> After ADR-0014, the CF proxy DNS hop becomes the largest remaining cost for internal callers — addressed only by the separate gateway workstream.</li>
+    </ul>
+
+    <h3>Potential issues — low level</h3>
+    <ul>
+      <li><strong>No negative/short-error caching.</strong> Only successful lookups are cached (correctly, re: outages), but a uid that legitimately 404s in Firebase, or a hot invalid token, still pays the network cost every request — a possible amplification vector on the public endpoint.</li>
+      <li><strong>No cache observability surfaced yet.</strong> There's a per-span <code>user_cache_hit</code> attribute, but no hit-rate metric/counter called out alongside the existing <code>rbac_*</code> metrics. Tuning the TTL and proving the win in prod needs a hit-ratio gauge.</li>
+      <li><strong>No request coalescing (single-flight).</strong> On a cold cache, a burst of concurrent requests for the same uid each fire their own <code>get_user</code>; under the canary-burst scenario this is exactly when the network cost multiplies.</li>
+      <li><strong>No TTL jitter.</strong> Entries written together (e.g. a burst after a deploy) expire together, producing a synchronized refresh stampede every TTL.</li>
+      <li><strong>Rate limit keyed only on subject uid.</strong> Pre-auth junk (bad tokens) isn't rate-limited by subject because there is no subject; the 4 MB cap and 422 gate help, but unauthenticated volume on a public endpoint is only partially bounded.</li>
+    </ul>
+  </section>
+
+  <!-- 11. IMPROVE -->
+  <section id="improve">
+    <span class="sec-tag">Recommendations</span>
+    <h2>Recommended improvements</h2>
+    <p>Ordered roughly by leverage-to-effort. Confidence reflects how strongly the codebase + thread support each.</p>
+
+    <h3>Low-level (within the current design)</h3>
+    <table class="t">
+      <thead><tr><th>Improvement</th><th>Why</th><th>Confidence</th></tr></thead>
+      <tbody>
+        <tr><td><b>Emit a cache hit-ratio metric</b> (counter or gauge alongside <code>rbac_*</code>)</td><td>Required to tune TTL and to demonstrate the prod win the ticket asks for. The span attribute exists; lift it to a metric.</td><td><span class="badge b-high">High</span></td></tr>
+        <tr><td><b>Add single-flight around <code>get_user</code></b> (per-uid lock/future)</td><td>Collapses a cold-cache burst for the same uid into one network call — directly targets the canary-burst failure mode.</td><td><span class="badge b-med">Medium</span></td></tr>
+        <tr><td><b>Add small TTL jitter</b> (e.g. ±10%)</td><td>Prevents synchronized expiry stampedes after deploys/bursts.</td><td><span class="badge b-med">Medium</span></td></tr>
+        <tr><td><b>Short negative cache for hard failures</b> (not outages)</td><td>Stops a hot invalid/unknown-uid token from paying the network cost every request; must exclude availability errors (ADR-0014 §4).</td><td><span class="badge b-med">Medium</span></td></tr>
+        <tr><td><b>Measure &amp; document prod latency before/after</b> using current haus-prod spans</td><td>Acceptance criterion in MCP-282; JP noted dev numbers aren't representative — pull fresh prod traces.</td><td><span class="badge b-high">High</span></td></tr>
+      </tbody>
+    </table>
+
+    <h3>High-level (architectural)</h3>
+    <table class="t">
+      <thead><tr><th>Improvement</th><th>Why</th><th>Confidence</th></tr></thead>
+      <tbody>
+        <tr><td><b>Internal network gateway</b> to bypass the CF proxy DNS hop for internal callers</td><td>Removes the ~100 ms that dominates once Firebase is cached; also helps canary traffic. Already owned by JP in-thread; pairs with MCP-283.</td><td><span class="badge b-high">High</span></td></tr>
+        <tr><td><b>Push-based revocation (denylist)</b> fed by a Firebase logout webhook/event</td><td>Decouples the revocation floor from Firebase polling and could approach instant logout while staying vendor-agnostic at the consumer. JP/Martin raised this; it is itself an authz-shaped store ("automagic flexibility" RBAC would own).</td><td><span class="badge b-med">Medium</span></td></tr>
+        <tr><td><b>Plan the move off Firebase</b> (issue your own short-lived tokens)</td><td>The thread's recurring theme: the 60 min lifetime, no revocation API, and SDK behavior are all Firebase constraints. Owning token issuance removes the root constraint — large but strategic.</td><td><span class="badge b-med">Medium</span></td></tr>
+        <tr><td><b>Service-to-service auth on <code>/permissions/check</code></b> (deferred in ADR-0003)</td><td>The public endpoint's trust model leans entirely on in-process hardening; a service JWT/mTLS layer would shrink the abuse surface. Deferred only for the six-consumer coordination cost — revisit as a shared client lands.</td><td><span class="badge b-low">Lower</span></td></tr>
+        <tr><td><b>Shared RBAC client SDK</b> (replace six <code>rbac_client.py</code> copies)</td><td>Centralizes retry/backoff on <code>503</code>, status-parity handling, and any future caller-auth — removing per-consumer drift. Explicitly deferred today.</td><td><span class="badge b-med">Medium</span></td></tr>
+      </tbody>
+    </table>
+
+    <div class="call decision">
+      <span class="t">If I were picking up MCP-282 from here</span>
+      <p>The cache is implemented and well-reasoned. The remaining high-value work is (1) ship the hit-ratio metric and capture prod before/after traces to satisfy the acceptance criteria, (2) get the security sign-off on the 30&nbsp;s TTL with the per-pod window stated honestly, and (3) keep the CF-gateway track separate so it isn't blocked on the cache. Single-flight + jitter are cheap follow-ups that specifically harden the canary-burst case the cache alone doesn't fully cover.</p>
+    </div>
+  </section>
+
+  <!-- 12. APPENDIX -->
+  <section id="appendix">
+    <span class="sec-tag">Reference</span>
+    <h2>File map, glossary &amp; sources</h2>
+
+    <h3>Where the hot path lives</h3>
+    <table class="t">
+      <thead><tr><th>File</th><th>Role</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">haus_rbac/api/dependencies.py</td><td>FastAPI auth dependencies; token extraction, DB context, <code>require_permission</code> / <code>require_authenticated_user</code> / <code>require_staff</code>.</td></tr>
+        <tr><td class="mono">haus_rbac/models/user.py</td><td><code>User.find_by_token()</code> — resolves via the user-source registry; no DB profile.</td></tr>
+        <tr><td class="mono">haus_rbac/user_sources/__init__.py</td><td>Adapter registry; <code>init</code>/<code>register</code>/<code>get_source</code> (default <code>firebase</code>).</td></tr>
+        <tr><td class="mono">haus_rbac/user_sources/base.py</td><td>The <code>UserSource</code> Protocol — the vendor-agnostic seam.</td></tr>
+        <tr><td class="mono">haus_rbac/user_sources/adapters/firebase.py</td><td><code>find_by_token</code>: verify (local) → cache/get_user → enforce revoke/disabled. <b>The MCP-282 hot spot.</b></td></tr>
+        <tr><td class="mono">haus_rbac/user_sources/cache.py</td><td><code>TtlCache</code> — thread-safe, size-bounded, lazy-expiry, kill-switchable.</td></tr>
+        <tr><td class="mono">haus_rbac/services/permission.py</td><td><code>check_permission</code> — MySQL org/membership + Postgres role-binding walk; raises <code>DependencyUnavailableError</code>.</td></tr>
+        <tr><td class="mono">haus_rbac/config.py</td><td><code>FirebaseConfig.user_cache_ttl_seconds</code> (env <code>FIREBASE_USER_CACHE_TTL_SECONDS</code>, default 30).</td></tr>
+        <tr><td class="mono">docs/adr/0014…, 0003…, 0007…</td><td>Cache decision; public-endpoint hardening; outage 503 envelope.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Glossary</h3>
+    <table class="t">
+      <tbody>
+        <tr><td class="mono nowrap">JWT / ID token</td><td>Signed, time-limited credential carrying user claims (uid, email, custom claims, auth_time, exp).</td></tr>
+        <tr><td class="mono nowrap">verify_id_token</td><td>Local cryptographic check of a JWT against cached public keys (~2 ms, no network).</td></tr>
+        <tr><td class="mono nowrap">get_user</td><td>Network call to Firebase Identity Toolkit for live server-side user state (~104 ms; the cached call).</td></tr>
+        <tr><td class="mono nowrap">tokens_valid_after</td><td>Server-side marker; tokens with an earlier <code>auth_time</code> are treated as revoked.</td></tr>
+        <tr><td class="mono nowrap">role_binding</td><td>Postgres row binding a user to a role in a scope (global or per-org); the unit RBAC walks to permissions.</td></tr>
+        <tr><td class="mono nowrap">name_as_key</td><td>An org's short-name key used in <code>/permissions/check</code> (distinct from the <code>subdomain</code> slug ferry routes by).</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Confidence &amp; verification</h3>
+    <p class="footnote">Code-level claims (the call chain, the cache mechanics, the enforcement logic, config defaults, consumer behavior) are <span class="badge b-high">High</span> confidence — read directly from the files on branch <code>zoeyhu/mcp-282</code>. Latency figures are <span class="badge b-med">Medium</span> — measured on <code>haus-development</code> and flagged in-thread by JP as not representative of prod; the qualitative shape (one network span dominating) is solid. The "what to do next" recommendations are my analysis, not established team decisions.</p>
+
+    <h3>Sources</h3>
+    <ul class="src-list">
+      <li>Slack thread — <a href="https://hausanalytics.slack.com/archives/C0B3SV30HP0/p1781707660797919">#mcp-eng, "the additional API call… in rbac api", 2026-06-17</a> (JP, Christian, Martin, Zoey).</li>
+      <li>Linear — <a href="https://linear.app/hausanalytics/issue/MCP-282/cut-the-per-request-firebase-get-user-network-call-off-the-auth-hot">MCP-282: Cut the per-request Firebase get_user network call off the auth hot path</a> (parent epic MCP-179; related MCP-180, MCP-283).</li>
+      <li>Repo <code>haus-rbac-api</code> (branch <code>zoeyhu/mcp-282</code>): <code>docs/architecture.md</code>, <code>docs/adr/0003</code>, <code>0007</code>, <code>0014</code>, <code>API_SPEC.md</code>, and the hot-path source files listed above.</li>
+      <li>Consumers: <code>haus-mcp-internal/src/haus_mcp/rbac.py</code>; <code>haus-mcp/src/haus_mcp/context.py</code> &amp; <code>domains/identity/forwarder.py</code>.</li>
+    </ul>
+  </section>
+
+  </main>
+</div>
+</div>
+
+<footer>
+  <div class="wrap">
+    Prepared for Zoey Hu · haus-rbac-api auth hot path &amp; architecture review · generated 2026-06-17.
+    Self-contained HTML — all styling is embedded, safe to open from disk and share. Use the toggle (top-right) to switch light / dark.
+  </div>
+</footer>
+
+<script>
+  (function(){
+    var root = document.documentElement;
+    var btn  = document.getElementById('themeToggle');
+
+    // Wire the toggle (initial theme already applied by the <head> bootstrap).
+    if(btn){
+      btn.addEventListener('click', function(){
+        var next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+        root.setAttribute('data-theme', next);
+        try{ localStorage.setItem('rbac-theme', next); }catch(e){}
+      });
+    }
+
+    // Progressive enhancement: highlight the active TOC entry while scrolling.
+    var links = Array.prototype.slice.call(document.querySelectorAll('.toc a'));
+    var map = {};
+    links.forEach(function(a){
+      var id = a.getAttribute('href').slice(1);
+      var el = document.getElementById(id);
+      if(el) map[id] = a;
+    });
+    var sections = Object.keys(map).map(function(id){ return document.getElementById(id); });
+    if(!('IntersectionObserver' in window) || !sections.length) return;
+    var obs = new IntersectionObserver(function(entries){
+      entries.forEach(function(e){
+        if(e.isIntersecting){
+          links.forEach(function(a){ a.style.background=''; a.style.color=''; });
+          var a = map[e.target.id];
+          if(a){ a.style.background='var(--accent-soft)'; a.style.color='var(--accent)'; }
+        }
+      });
+    }, {rootMargin:'-10% 0px -80% 0px', threshold:0});
+    sections.forEach(function(s){ obs.observe(s); });
+  })();
+</script>
+</body>
+</html>
